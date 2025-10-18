@@ -1,0 +1,404 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard - FINANZEN</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+
+<body class="dashboard">
+    <div class="container">
+        <button id="logout-btn" class="logout-btn" onclick="logout()">Logout</button>
+
+        <div class="header-section">
+            <h1>FINANZEN</h1>
+            <h2>Your Budget Dashboard</h2>
+        </div>
+
+        <div class="user-info">
+            <h3>Welcome, <span id="user-name">User</span>!</h3>
+        </div>
+
+        <div class="budget-section">
+            <!-- Budget Setter for new users -->
+            <div id="budget-setter" class="budget-card">
+                <h3>Set Your Budget</h3>
+                <div class="budget-controls">
+                    <div class="form-group">
+                        <label for="monthly-budget" class="budget-setter-labels">Budget Amount (₹)</label>
+                        <input type="number" id="monthly-budget" class="form-control"
+                            placeholder="Enter your budget amount">
+                    </div>
+                    <div class="form-group">
+                        <label for="budget-period" class="budget-setter-labels">Budget Period</label>
+                        <select id="budget-period" class="form-control">
+                            <option value="monthly">Monthly</option>
+                            <option value="weekly">Weekly</option>
+                            <option value="yearly">Yearly</option>
+                            <option value="custom">Custom Period</option>
+                        </select>
+                    </div>
+                    <div id="custom-period-container" class="form-group hidden">
+                        <label for="custom-period" class="budget-setter-labels">Custom Period (days)</label>
+                        <input type="number" id="custom-period" class="form-control" placeholder="Enter number of days">
+                    </div>
+                    <button id="set-budget" class="submit-btn">Set Budget</button>
+                </div>
+            </div>
+
+            <!-- Budget Overview (shown after budget is set) -->
+            <div id="budget-overview" class="budget-card hidden">
+                <h3>Budget Overview</h3>
+                <div id="budget-period-info" class="budget-period-info">
+                    <!-- Budget period info will be displayed here -->
+                </div>
+                <div class="progress-container">
+                    <div class="progress-label">
+                        <span>Budget Usage</span>
+                        <span id="progress-percentage"></span>
+                    </div>
+                    <div class="progress-bar">
+                        <div id="progress-fill" class="progress-fill" style="width: 0%">
+                            <span id="progress-text" class="progress-text"></span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="budget-stats">
+                    <div class="budget-stat">
+                        <div class="budget-stat-value">₹<span id="display-budget">0</span></div>
+                        <div class="budget-stat-label">Budget</div>
+                    </div>
+                    <div class="budget-stat">
+                        <div class="budget-stat-value">₹<span id="total-expenses">0</span></div>
+                        <div class="budget-stat-label">Spent</div>
+                    </div>
+                    <div class="budget-stat">
+                        <div class="budget-stat-value">₹<span id="remaining-budget">0</span></div>
+                        <div class="budget-stat-label">Remaining</div>
+                    </div>
+                </div>
+
+                <!-- Reset Budget Button -->
+                <button id="reset-budget-btn" class="reset-budget-btn" onclick="resetBudget()">Reset My Budget</button>
+            </div>
+        </div>
+
+        <div id="expense-tracker" class="expense-form hidden">
+            <h3>Add New Expense</h3>
+            <form id="expense-form" class="inline-expense-form">
+                <div class="form-group">
+                    <label for="expense-amount">Amount (₹)</label>
+                    <input type="number" id="expense-amount" class="form-control" placeholder="Amount" required>
+                </div>
+                <div class="form-group">
+                    <label for="expense-category">Category</label>
+                    <select id="expense-category" class="form-control" required>
+                        <option value="">Select</option>
+                        <option value="Food">Food</option>
+                        <option value="Transportation">Transportation</option>
+                        <option value="Entertainment">Entertainment</option>
+                        <option value="Bills">Bills</option>
+                        <option value="Shopping">Shopping</option>
+                        <option value="Other">Other</option>
+                    </select>
+                </div>
+                <div id="other-category-container" class="form-group hidden">
+                    <label for="other-category">Specify Category</label>
+                    <input type="text" id="other-category" class="form-control" placeholder="Category name">
+                </div>
+                <div class="form-group">
+                    <label for="expense-description">Description</label>
+                    <input type="text" id="expense-description" class="form-control" placeholder="Description">
+                </div>
+                <button type="submit" class="submit-btn">Add</button>
+            </form>
+        </div>
+
+        <div id="expense-list" class="expense-list hidden">
+            <h3>Your Expenses</h3>
+            <div id="expenses-container">
+                <!-- Expenses will be displayed here -->
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // DOM Elements
+        const expenseForm = document.getElementById('expense-form');
+        const expenseCategory = document.getElementById('expense-category');
+        const otherCategoryContainer = document.getElementById('other-category-container');
+        const budgetSetter = document.getElementById('budget-setter');
+        const budgetOverview = document.getElementById('budget-overview');
+        const expenseTracker = document.getElementById('expense-tracker');
+        const expenseList = document.getElementById('expense-list');
+        const budgetPeriod = document.getElementById('budget-period');
+        const customPeriodContainer = document.getElementById('custom-period-container');
+
+        // Progress bar elements
+        const progressFill = document.getElementById('progress-fill');
+        const progressPercentage = document.getElementById('progress-percentage');
+        const progressText = document.getElementById('progress-text');
+        const budgetPeriodInfo = document.getElementById('budget-period-info');
+
+        // User data
+        let currentUser = localStorage.getItem('finanzenCurrentUser');
+        let users = JSON.parse(localStorage.getItem('finanzenUsers')) || {};
+
+        // Check if user is logged in
+        if (!currentUser || !users[currentUser]) {
+            window.location.href = 'index.html';
+        }
+
+        // Event Listeners
+        document.addEventListener('DOMContentLoaded', function () {
+            // Update user info
+            document.getElementById('user-name').textContent = users[currentUser].name;
+
+            // Check if budget is already set
+            if (users[currentUser].budget > 0) {
+                budgetSetter.style.display = 'none';
+                budgetOverview.classList.remove('hidden');
+                expenseTracker.classList.remove('hidden');
+                expenseList.classList.remove('hidden');
+
+                // Update budget display
+                document.getElementById('display-budget').textContent = users[currentUser].budget;
+
+                // Update budget period info
+                updateBudgetPeriodInfo();
+            } else {
+                budgetSetter.style.display = 'block';
+                budgetOverview.classList.add('hidden');
+                expenseTracker.classList.add('hidden');
+                expenseList.classList.add('hidden');
+            }
+
+            // Load expenses
+            loadExpenses();
+            updateBudgetSummary();
+        });
+
+        expenseForm.addEventListener('submit', addExpense);
+        expenseCategory.addEventListener('change', toggleOtherCategory);
+        budgetPeriod.addEventListener('change', toggleCustomPeriod);
+        document.getElementById('set-budget').addEventListener('click', setBudget);
+
+        // Functions
+        function toggleCustomPeriod() {
+            if (budgetPeriod.value === 'custom') {
+                customPeriodContainer.classList.remove('hidden');
+            } else {
+                customPeriodContainer.classList.add('hidden');
+            }
+        }
+
+        function setBudget() {
+            const budget = parseInt(document.getElementById('monthly-budget').value);
+            const period = document.getElementById('budget-period').value;
+            let customDays = null;
+
+            if (period === 'custom') {
+                customDays = parseInt(document.getElementById('custom-period').value);
+                if (isNaN(customDays) || customDays <= 0) {
+                    alert('Please enter a valid number of days for the custom period!');
+                    return;
+                }
+            }
+
+            if (isNaN(budget) || budget <= 0) {
+                alert('Please enter a valid budget amount!');
+                return;
+            }
+
+            users[currentUser].budget = budget;
+            users[currentUser].budgetPeriod = period;
+            users[currentUser].customDays = customDays;
+            localStorage.setItem('finanzenUsers', JSON.stringify(users));
+
+            document.getElementById('display-budget').textContent = budget;
+
+            // Hide budget setter and show other sections
+            budgetSetter.style.display = 'none';
+            budgetOverview.classList.remove('hidden');
+            expenseTracker.classList.remove('hidden');
+            expenseList.classList.remove('hidden');
+
+            // Update budget period info
+            updateBudgetPeriodInfo();
+
+            updateBudgetSummary();
+
+            alert('Budget set successfully!');
+        }
+
+        function updateBudgetPeriodInfo() {
+            const period = users[currentUser].budgetPeriod;
+            let periodText = '';
+
+            switch (period) {
+                case 'monthly':
+                    periodText = 'Monthly Budget';
+                    break;
+                case 'weekly':
+                    periodText = 'Weekly Budget';
+                    break;
+                case 'yearly':
+                    periodText = 'Yearly Budget';
+                    break;
+                case 'custom':
+                    periodText = `Custom Budget (${users[currentUser].customDays} days)`;
+                    break;
+                default:
+                    periodText = 'Budget';
+            }
+
+            budgetPeriodInfo.textContent = periodText;
+        }
+
+        function addExpense(e) {
+            e.preventDefault();
+
+            const amount = parseInt(document.getElementById('expense-amount').value);
+            let category = document.getElementById('expense-category').value;
+            const description = document.getElementById('expense-description').value;
+
+            if (isNaN(amount) || amount <= 0) {
+                alert('Please enter a valid amount!');
+                return;
+            }
+
+            if (!category) {
+                alert('Please select a category!');
+                return;
+            }
+
+            if (category === 'Other') {
+                category = document.getElementById('other-category').value;
+                if (!category) {
+                    alert('Please specify the category!');
+                    return;
+                }
+            }
+
+            // Add expense
+            const expense = {
+                id: Date.now(),
+                amount,
+                category,
+                description,
+                date: new Date().toLocaleDateString()
+            };
+
+            users[currentUser].expenses.push(expense);
+            localStorage.setItem('finanzenUsers', JSON.stringify(users));
+
+            // Reset form
+            expenseForm.reset();
+            otherCategoryContainer.classList.add('hidden');
+
+            // Update UI
+            loadExpenses();
+            updateBudgetSummary();
+        }
+
+        function loadExpenses() {
+            const expensesContainer = document.getElementById('expenses-container');
+            expensesContainer.innerHTML = '';
+
+            if (users[currentUser].expenses.length === 0) {
+                expensesContainer.innerHTML = '<p>No expenses added yet.</p>';
+                return;
+            }
+
+            users[currentUser].expenses.forEach(expense => {
+                const expenseElement = document.createElement('div');
+                expenseElement.className = 'expense-item';
+                expenseElement.innerHTML = `
+                    <div>
+                        <strong>${expense.category}</strong>
+                        <br>
+                        <small>${expense.description} - ${expense.date}</small>
+                    </div>
+                    <div>₹${expense.amount}</div>
+                `;
+                expensesContainer.appendChild(expenseElement);
+            });
+        }
+
+        function updateBudgetSummary() {
+            const totalExpenses = users[currentUser].expenses.reduce((sum, expense) => sum + expense.amount, 0);
+            const remainingBudget = users[currentUser].budget - totalExpenses;
+            const budgetPercentage = users[currentUser].budget > 0 ?
+                Math.min(100, (totalExpenses / users[currentUser].budget) * 100) : 0;
+
+            document.getElementById('total-expenses').textContent = totalExpenses;
+            document.getElementById('remaining-budget').textContent = remainingBudget;
+
+            // Update progress bar
+            progressFill.style.width = `${budgetPercentage}%`;
+
+            // Only show percentage if there are expenses
+            if (totalExpenses > 0) {
+                progressText.textContent = `${Math.round(budgetPercentage)}%`;
+                progressPercentage.textContent = `${Math.round(budgetPercentage)}%`;
+            } else {
+                progressText.textContent = '';
+                progressPercentage.textContent = '';
+            }
+
+            // Update progress bar color based on percentage
+            if (budgetPercentage > 80) {
+                progressFill.className = 'progress-fill danger';
+            } else if (budgetPercentage > 60) {
+                progressFill.className = 'progress-fill warning';
+            } else {
+                progressFill.className = 'progress-fill';
+            }
+        }
+
+        function toggleOtherCategory() {
+            if (expenseCategory.value === 'Other') {
+                otherCategoryContainer.classList.remove('hidden');
+            } else {
+                otherCategoryContainer.classList.add('hidden');
+            }
+        }
+
+        function logout() {
+            localStorage.removeItem('finanzenCurrentUser');
+            window.location.href = 'index.html';
+        }
+
+        function resetBudget() {
+            if (confirm('Are you sure you want to reset your budget? This will clear your current budget, expenses, and start fresh. Your account will remain intact.')) {
+                // Reset only the current user's budget and expenses
+                users[currentUser].budget = 0;
+                users[currentUser].expenses = [];
+                users[currentUser].budgetPeriod = '';
+                users[currentUser].customDays = null;
+
+                // Save the updated user data
+                localStorage.setItem('finanzenUsers', JSON.stringify(users));
+
+                // Show budget setter and hide other sections
+                budgetSetter.style.display = 'block';
+                budgetOverview.classList.add('hidden');
+                expenseTracker.classList.add('hidden');
+                expenseList.classList.add('hidden');
+
+                // Clear the budget input fields
+                document.getElementById('monthly-budget').value = '';
+                document.getElementById('budget-period').value = 'monthly';
+                document.getElementById('custom-period').value = '';
+                customPeriodContainer.classList.add('hidden');
+
+                alert('Your budget has been reset! Please set a new budget to continue.');
+            }
+        }
+    </script>
+</body>
+
+</html>
