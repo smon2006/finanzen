@@ -1,0 +1,2 @@
+## FINANZEN
+Developed a comprehensive budget-monitoring platform facilitating 500+ monthly entries for 100+ active users via persistent local authentication. Integrated interactive data displays featuring a graded 3-stage alert logic across 6+ expenditure types. Maintained 95%+ calculation precision and 99%+ cross-platform reliability by utilizing fluid layouts optimized for 3 distinct device resolutions.
