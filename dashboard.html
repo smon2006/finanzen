@@ -6,6 +6,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Dashboard - FINANZEN</title>
     <link rel="stylesheet" href="style.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 
 <body class="dashboard">
@@ -22,13 +23,12 @@
         </div>
 
         <div class="budget-section">
-            <!-- Budget Setter for new users -->
             <div id="budget-setter" class="budget-card">
                 <h3>Set Your Budget</h3>
                 <div class="budget-controls">
                     <div class="form-group">
                         <label for="monthly-budget" class="budget-setter-labels">Budget Amount (₹)</label>
-                        <input type="number" id="monthly-budget" class="form-control"
+                        <input type="number" id="monthly-budget" min="1" class="form-control"
                             placeholder="Enter your budget amount">
                     </div>
                     <div class="form-group">
@@ -42,17 +42,16 @@
                     </div>
                     <div id="custom-period-container" class="form-group hidden">
                         <label for="custom-period" class="budget-setter-labels">Custom Period (days)</label>
-                        <input type="number" id="custom-period" class="form-control" placeholder="Enter number of days">
+                        <input type="number" id="custom-period" min="1" class="form-control"
+                            placeholder="Enter number of days">
                     </div>
                     <button id="set-budget" class="submit-btn">Set Budget</button>
                 </div>
             </div>
 
-            <!-- Budget Overview (shown after budget is set) -->
             <div id="budget-overview" class="budget-card hidden">
                 <h3>Budget Overview</h3>
                 <div id="budget-period-info" class="budget-period-info">
-                    <!-- Budget period info will be displayed here -->
                 </div>
                 <div class="progress-container">
                     <div class="progress-label">
@@ -81,7 +80,15 @@
                     </div>
                 </div>
 
-                <!-- Reset Budget Button -->
+                <p id="rollover-alert"
+                    style="color: #dc3545; font-size: 0.9em; display: none; text-align: center; margin-top: 15px; font-weight: bold;">
+                </p>
+
+                <div id="chart-wrapper" class="chart-container"
+                    style="position: relative; height: 250px; width: 100%; margin-top: 25px; margin-bottom: 25px;">
+                    <canvas id="expenseChart"></canvas>
+                </div>
+
                 <button id="reset-budget-btn" class="reset-budget-btn" onclick="resetBudget()">Reset My Budget</button>
             </div>
         </div>
@@ -91,7 +98,7 @@
             <form id="expense-form" class="inline-expense-form">
                 <div class="form-group">
                     <label for="expense-amount">Amount (₹)</label>
-                    <input type="number" id="expense-amount" class="form-control" placeholder="Amount" required>
+                    <input type="number" id="expense-amount" min="1" class="form-control" placeholder="Amount" required>
                 </div>
                 <div class="form-group">
                     <label for="expense-category">Category</label>
@@ -120,7 +127,6 @@
         <div id="expense-list" class="expense-list hidden">
             <h3>Your Expenses</h3>
             <div id="expenses-container">
-                <!-- Expenses will be displayed here -->
             </div>
         </div>
     </div>
@@ -143,42 +149,24 @@
         const progressText = document.getElementById('progress-text');
         const budgetPeriodInfo = document.getElementById('budget-period-info');
 
-        // User data
+        // Secure API Tokens & Session Data
+        const API_URL = 'http://127.0.0.1:8000/api';
+        const token = localStorage.getItem('finanzenToken');
         let currentUser = localStorage.getItem('finanzenCurrentUser');
-        let users = JSON.parse(localStorage.getItem('finanzenUsers')) || {};
-
-        // Check if user is logged in
-        if (!currentUser || !users[currentUser]) {
+        let dashboardData = {
+            name: currentUser || "User",
+            budget: 0,
+            budgetPeriod: 'monthly',
+            customDays: null,
+            expenses: []
+        };
+        let expenseChartInstance = null;
+        if (!token || !currentUser) {
             window.location.href = 'index.html';
         }
-
-        // Event Listeners
         document.addEventListener('DOMContentLoaded', function () {
-            // Update user info
-            document.getElementById('user-name').textContent = users[currentUser].name;
-
-            // Check if budget is already set
-            if (users[currentUser].budget > 0) {
-                budgetSetter.style.display = 'none';
-                budgetOverview.classList.remove('hidden');
-                expenseTracker.classList.remove('hidden');
-                expenseList.classList.remove('hidden');
-
-                // Update budget display
-                document.getElementById('display-budget').textContent = users[currentUser].budget;
-
-                // Update budget period info
-                updateBudgetPeriodInfo();
-            } else {
-                budgetSetter.style.display = 'block';
-                budgetOverview.classList.add('hidden');
-                expenseTracker.classList.add('hidden');
-                expenseList.classList.add('hidden');
-            }
-
-            // Load expenses
-            loadExpenses();
-            updateBudgetSummary();
+            document.getElementById('user-name').textContent = currentUser;
+            fetchDashboardMetrics();
         });
 
         expenseForm.addEventListener('submit', addExpense);
@@ -186,7 +174,46 @@
         budgetPeriod.addEventListener('change', toggleCustomPeriod);
         document.getElementById('set-budget').addEventListener('click', setBudget);
 
-        // Functions
+        async function fetchDashboardMetrics() {
+            try {
+                const response = await fetch(`${API_URL}/dashboard`, {
+                    method: 'GET',
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+
+                if (response.ok) {
+                    dashboardData = await response.json();
+                    syncUIState();
+                } else if (response.status === 401) {
+                    logout();
+                }
+            } catch (error) {
+                console.error("Database connection fault:", error);
+                syncUIState(); 
+            }
+        }
+        function syncUIState() {
+            document.getElementById('user-name').textContent = dashboardData.name || currentUser;
+
+            if (dashboardData.budget > 0) {
+                budgetSetter.style.display = 'none';
+                budgetOverview.classList.remove('hidden');
+                expenseTracker.classList.remove('hidden');
+                expenseList.classList.remove('hidden');
+
+                document.getElementById('display-budget').textContent = dashboardData.budget;
+                updateBudgetPeriodInfo();
+                loadExpenses();
+                updateBudgetSummary();
+                renderExpenseChart();
+            } else {
+                budgetSetter.style.display = 'block';
+                budgetOverview.classList.add('hidden');
+                expenseTracker.classList.add('hidden');
+                expenseList.classList.add('hidden');
+            }
+        }
+
         function toggleCustomPeriod() {
             if (budgetPeriod.value === 'custom') {
                 customPeriodContainer.classList.remove('hidden');
@@ -195,9 +222,9 @@
             }
         }
 
-        function setBudget() {
+        async function setBudget() {
             const budget = parseInt(document.getElementById('monthly-budget').value);
-            const period = document.getElementById('budget-period').value;
+            const period = budgetPeriod.value;
             let customDays = null;
 
             if (period === 'custom') {
@@ -213,29 +240,33 @@
                 return;
             }
 
-            users[currentUser].budget = budget;
-            users[currentUser].budgetPeriod = period;
-            users[currentUser].customDays = customDays;
-            localStorage.setItem('finanzenUsers', JSON.stringify(users));
+            try {
+                const response = await fetch(`${API_URL}/budget`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`
+                    },
+                    body: JSON.stringify({
+                        budget: budget,
+                        budget_period: period,
+                        custom_days: customDays
+                    })
+                });
 
-            document.getElementById('display-budget').textContent = budget;
-
-            // Hide budget setter and show other sections
-            budgetSetter.style.display = 'none';
-            budgetOverview.classList.remove('hidden');
-            expenseTracker.classList.remove('hidden');
-            expenseList.classList.remove('hidden');
-
-            // Update budget period info
-            updateBudgetPeriodInfo();
-
-            updateBudgetSummary();
-
-            alert('Budget set successfully!');
+                if (response.ok) {
+                    alert('Budget set successfully!');
+                    fetchDashboardMetrics();
+                } else {
+                    alert('Failed to update your budget parameters on the engine.');
+                }
+            } catch (error) {
+                alert('Server network dropping. Budget update aborted.');
+            }
         }
 
         function updateBudgetPeriodInfo() {
-            const period = users[currentUser].budgetPeriod;
+            const period = dashboardData.budgetPeriod;
             let periodText = '';
 
             switch (period) {
@@ -249,7 +280,7 @@
                     periodText = 'Yearly Budget';
                     break;
                 case 'custom':
-                    periodText = `Custom Budget (${users[currentUser].customDays} days)`;
+                    periodText = `Custom Budget (${dashboardData.customDays} days)`;
                     break;
                 default:
                     periodText = 'Budget';
@@ -258,11 +289,11 @@
             budgetPeriodInfo.textContent = periodText;
         }
 
-        function addExpense(e) {
+        async function addExpense(e) {
             e.preventDefault();
 
             const amount = parseInt(document.getElementById('expense-amount').value);
-            let category = document.getElementById('expense-category').value;
+            let category = expenseCategory.value;
             const description = document.getElementById('expense-description').value;
 
             if (isNaN(amount) || amount <= 0) {
@@ -283,44 +314,49 @@
                 }
             }
 
-            // Add expense
-            const expense = {
-                id: Date.now(),
-                amount,
-                category,
-                description,
-                date: new Date().toLocaleDateString()
-            };
+            try {
+                const response = await fetch(`${API_URL}/expenses`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`
+                    },
+                    body: JSON.stringify({
+                        amount: amount,
+                        category: category,
+                        description: description
+                    })
+                });
 
-            users[currentUser].expenses.push(expense);
-            localStorage.setItem('finanzenUsers', JSON.stringify(users));
-
-            // Reset form
-            expenseForm.reset();
-            otherCategoryContainer.classList.add('hidden');
-
-            // Update UI
-            loadExpenses();
-            updateBudgetSummary();
+                if (response.ok) {
+                    expenseForm.reset();
+                    otherCategoryContainer.classList.add('hidden');
+                    fetchDashboardMetrics();
+                } else {
+                    alert('Failed to save the new transaction record.');
+                }
+            } catch (error) {
+                alert('Server unreachable. Expense was not recorded.');
+            }
         }
 
         function loadExpenses() {
             const expensesContainer = document.getElementById('expenses-container');
             expensesContainer.innerHTML = '';
 
-            if (users[currentUser].expenses.length === 0) {
+            if (!dashboardData.expenses || dashboardData.expenses.length === 0) {
                 expensesContainer.innerHTML = '<p>No expenses added yet.</p>';
                 return;
             }
 
-            users[currentUser].expenses.forEach(expense => {
+            dashboardData.expenses.forEach(expense => {
                 const expenseElement = document.createElement('div');
                 expenseElement.className = 'expense-item';
                 expenseElement.innerHTML = `
                     <div>
                         <strong>${expense.category}</strong>
                         <br>
-                        <small>${expense.description} - ${expense.date}</small>
+                        <small>${expense.description || 'No description'} - ${expense.date || ''}</small>
                     </div>
                     <div>₹${expense.amount}</div>
                 `;
@@ -329,33 +365,42 @@
         }
 
         function updateBudgetSummary() {
-            const totalExpenses = users[currentUser].expenses.reduce((sum, expense) => sum + expense.amount, 0);
-            const remainingBudget = users[currentUser].budget - totalExpenses;
-            const budgetPercentage = users[currentUser].budget > 0 ?
-                Math.min(100, (totalExpenses / users[currentUser].budget) * 100) : 0;
+            const totalExpenses = dashboardData.expenses.reduce((sum, expense) => sum + expense.amount, 0);
+            const budgetPercentage = dashboardData.budget > 0 ?
+                Math.min(100, (totalExpenses / dashboardData.budget) * 100) : 0;
 
             document.getElementById('total-expenses').textContent = totalExpenses;
-            document.getElementById('remaining-budget').textContent = remainingBudget;
 
-            // Update progress bar
+            const safeSavings = dashboardData.savings !== undefined ? dashboardData.savings : Math.max(0, dashboardData.budget - totalExpenses);
+            document.getElementById('remaining-budget').textContent = safeSavings;
+
+            const rolloverAlert = document.getElementById('rollover-alert');
+
+            if (dashboardData.rolloverMessage && dashboardData.rolloverMessage !== "") {
+                rolloverAlert.innerText = dashboardData.rolloverMessage;
+                rolloverAlert.style.display = "block";
+                progressFill.className = 'progress-fill danger';
+            } else {
+                rolloverAlert.style.display = "none";
+                rolloverAlert.innerText = "";
+
+                if (budgetPercentage > 80) {
+                    progressFill.className = 'progress-fill danger';
+                } else if (budgetPercentage > 60) {
+                    progressFill.className = 'progress-fill warning';
+                } else {
+                    progressFill.className = 'progress-fill';
+                }
+            }
+
             progressFill.style.width = `${budgetPercentage}%`;
 
-            // Only show percentage if there are expenses
             if (totalExpenses > 0) {
                 progressText.textContent = `${Math.round(budgetPercentage)}%`;
                 progressPercentage.textContent = `${Math.round(budgetPercentage)}%`;
             } else {
                 progressText.textContent = '';
                 progressPercentage.textContent = '';
-            }
-
-            // Update progress bar color based on percentage
-            if (budgetPercentage > 80) {
-                progressFill.className = 'progress-fill danger';
-            } else if (budgetPercentage > 60) {
-                progressFill.className = 'progress-fill warning';
-            } else {
-                progressFill.className = 'progress-fill';
             }
         }
 
@@ -368,35 +413,101 @@
         }
 
         function logout() {
-            localStorage.removeItem('finanzenCurrentUser');
+            localStorage.clear();
             window.location.href = 'index.html';
         }
 
-        function resetBudget() {
+        async function resetBudget() {
             if (confirm('Are you sure you want to reset your budget? This will clear your current budget, expenses, and start fresh. Your account will remain intact.')) {
-                // Reset only the current user's budget and expenses
-                users[currentUser].budget = 0;
-                users[currentUser].expenses = [];
-                users[currentUser].budgetPeriod = '';
-                users[currentUser].customDays = null;
+                try {
+                    const response = await fetch(`${API_URL}/budget/reset`, {
+                        method: 'POST',
+                        headers: { 'Authorization': `Bearer ${token}` }
+                    });
 
-                // Save the updated user data
-                localStorage.setItem('finanzenUsers', JSON.stringify(users));
+                    if (response.ok) {
+                        document.getElementById('monthly-budget').value = '';
+                        document.getElementById('budget-period').value = 'monthly';
+                        document.getElementById('custom-period').value = '';
+                        customPeriodContainer.classList.add('hidden');
 
-                // Show budget setter and hide other sections
-                budgetSetter.style.display = 'block';
-                budgetOverview.classList.add('hidden');
-                expenseTracker.classList.add('hidden');
-                expenseList.classList.add('hidden');
-
-                // Clear the budget input fields
-                document.getElementById('monthly-budget').value = '';
-                document.getElementById('budget-period').value = 'monthly';
-                document.getElementById('custom-period').value = '';
-                customPeriodContainer.classList.add('hidden');
-
-                alert('Your budget has been reset! Please set a new budget to continue.');
+                        alert('Your budget has been reset! Please set a new budget to continue.');
+                        fetchDashboardMetrics();
+                    } else {
+                        alert('Reset command rejected by engine.');
+                    }
+                } catch (error) {
+                    alert('Could not issue clear operations right now.');
+                }
             }
+        }
+
+        function renderExpenseChart() {
+            const ctx = document.getElementById('expenseChart');
+            const chartWrapper = document.getElementById('chart-wrapper'); // Grab wrapper
+            if (!ctx) return;
+
+            if (!dashboardData.expenses || dashboardData.expenses.length === 0) {
+                if (chartWrapper) chartWrapper.classList.add('hidden');
+                if (expenseChartInstance) {
+                    expenseChartInstance.destroy();
+                    expenseChartInstance = null;
+                }
+                return;
+            }
+
+            if (chartWrapper) chartWrapper.classList.remove('hidden');
+
+            const categoryTotals = {};
+            dashboardData.expenses.forEach(exp => {
+                if (categoryTotals[exp.category]) {
+                    categoryTotals[exp.category] += exp.amount;
+                } else {
+                    categoryTotals[exp.category] = exp.amount;
+                }
+            });
+
+            const labels = Object.keys(categoryTotals);
+            const data = Object.values(categoryTotals);
+
+            if (expenseChartInstance) {
+                expenseChartInstance.destroy();
+            }
+
+            expenseChartInstance = new Chart(ctx, {
+                type: 'doughnut',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        data: data,
+                        backgroundColor: [
+                            '#0d6efd', // Blue
+                            '#198754', // Green
+                            '#ffc107', // Yellow
+                            '#dc3545', // Red
+                            '#0dcaf0', // Cyan
+                            '#6f42c1', // Purple
+                            '#fd7e14'  // Orange
+                        ],
+                        borderWidth: 0,
+                        hoverOffset: 4
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            position: 'bottom',
+                            labels: {
+                                padding: 20,
+                                color: '#ffffff',
+                                font: { family: 'system-ui, sans-serif', size: 14, weight: 'bold' }
+                            }
+                        }
+                    }
+                }
+            });
         }
     </script>
 </body>
