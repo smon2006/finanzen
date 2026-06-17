@@ -148,7 +148,7 @@
         const progressText = document.getElementById('progress-text');
         const budgetPeriodInfo = document.getElementById('budget-period-info');
 
-        const API_URL = 'https://finanzen-backend-5pqy.onrender.com/';
+        const API_URL = 'https://finanzen-backend-5pqy.onrender.com/api';
         const token = localStorage.getItem('finanzenToken');
         let currentUser = localStorage.getItem('finanzenCurrentUser');
         let dashboardData = {
@@ -173,23 +173,23 @@
         document.getElementById('set-budget').addEventListener('click', setBudget);
 
         async function fetchDashboardMetrics() {
-            try {
-                const response = await fetch(`${API_URL}/dashboard`, {
-                    method: 'GET',
-                    headers: { 'Authorization': `Bearer ${token}` }
-                });
+                try {
+                    const response = await fetch(`${API_URL}/dashboard`, {
+                        method: 'GET',
+                        headers: { 'Authorization': `Bearer ${token}` }
+                    });
 
-                if (response.ok) {
-                    dashboardData = await response.json();
+                    if (response.ok) {
+                        dashboardData = await response.json();
+                        syncUIState();
+                    } else if (response.status === 401) {
+                        logout();
+                    }
+                } catch (error) {
+                    console.error("Database connection fault:", error);
                     syncUIState();
-                } else if (response.status === 401) {
-                    logout();
                 }
-            } catch (error) {
-                console.error("Database connection fault:", error);
-                syncUIState(); 
             }
-        }
         function syncUIState() {
             document.getElementById('user-name').textContent = dashboardData.name || currentUser;
 
@@ -262,7 +262,6 @@
                 Swal.fire({ icon: 'error', title: 'Network Error', text: 'Server network dropping. Budget update aborted.' });
             }
         }
-
         function updateBudgetPeriodInfo() {
             const period = dashboardData.budgetPeriod;
             let periodText = '';
