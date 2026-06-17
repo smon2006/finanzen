@@ -6,6 +6,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Dashboard - FINANZEN</title>
     <link rel="stylesheet" href="style.css">
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 
@@ -222,7 +223,7 @@
             }
         }
 
-        async function setBudget() {
+       async function setBudget() {
             const budget = parseInt(document.getElementById('monthly-budget').value);
             const period = budgetPeriod.value;
             let customDays = null;
@@ -230,13 +231,13 @@
             if (period === 'custom') {
                 customDays = parseInt(document.getElementById('custom-period').value);
                 if (isNaN(customDays) || customDays <= 0) {
-                    alert('Please enter a valid number of days for the custom period!');
+                    Swal.fire({ icon: 'error', title: 'Oops...', text: 'Please enter a valid number of days for the custom period!' });
                     return;
                 }
             }
 
             if (isNaN(budget) || budget <= 0) {
-                alert('Please enter a valid budget amount!');
+                Swal.fire({ icon: 'error', title: 'Invalid Budget', text: 'Please enter a valid budget amount!' });
                 return;
             }
 
@@ -255,13 +256,13 @@
                 });
 
                 if (response.ok) {
-                    alert('Budget set successfully!');
+                    Swal.fire({ icon: 'success', title: 'Success!', text: 'Budget set successfully!', confirmButtonColor: '#2563eb' });
                     fetchDashboardMetrics();
                 } else {
-                    alert('Failed to update your budget parameters on the engine.');
+                    Swal.fire({ icon: 'error', title: 'Failed', text: 'Failed to update your budget parameters on the engine.' });
                 }
             } catch (error) {
-                alert('Server network dropping. Budget update aborted.');
+                Swal.fire({ icon: 'error', title: 'Network Error', text: 'Server network dropping. Budget update aborted.' });
             }
         }
 
@@ -290,56 +291,55 @@
         }
 
         async function addExpense(e) {
-            e.preventDefault();
+                e.preventDefault();
 
-            const amount = parseInt(document.getElementById('expense-amount').value);
-            let category = expenseCategory.value;
-            const description = document.getElementById('expense-description').value;
+                const amount = parseInt(document.getElementById('expense-amount').value);
+                let category = expenseCategory.value;
+                const description = document.getElementById('expense-description').value;
 
-            if (isNaN(amount) || amount <= 0) {
-                alert('Please enter a valid amount!');
-                return;
-            }
-
-            if (!category) {
-                alert('Please select a category!');
-                return;
-            }
-
-            if (category === 'Other') {
-                category = document.getElementById('other-category').value;
-                if (!category) {
-                    alert('Please specify the category!');
+                if (isNaN(amount) || amount <= 0) {
+                    Swal.fire({ icon: 'error', title: 'Invalid Amount', text: 'Please enter a valid amount!' });
                     return;
                 }
-            }
 
-            try {
-                const response = await fetch(`${API_URL}/expenses`, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'Authorization': `Bearer ${token}`
-                    },
-                    body: JSON.stringify({
-                        amount: amount,
-                        category: category,
-                        description: description
-                    })
-                });
-
-                if (response.ok) {
-                    expenseForm.reset();
-                    otherCategoryContainer.classList.add('hidden');
-                    fetchDashboardMetrics();
-                } else {
-                    alert('Failed to save the new transaction record.');
+                if (!category) {
+                    Swal.fire({ icon: 'warning', title: 'Missing Category', text: 'Please select a category!' });
+                    return;
                 }
-            } catch (error) {
-                alert('Server unreachable. Expense was not recorded.');
-            }
-        }
 
+                if (category === 'Other') {
+                    category = document.getElementById('other-category').value;
+                    if (!category) {
+                        Swal.fire({ icon: 'warning', title: 'Specify Category', text: 'Please specify the category name!' });
+                        return;
+                    }
+                }
+
+                try {
+                    const response = await fetch(`${API_URL}/expenses`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Authorization': `Bearer ${token}`
+                        },
+                        body: JSON.stringify({
+                            amount: amount,
+                            category: category,
+                            description: description
+                        })
+                    });
+
+                    if (response.ok) {
+                        expenseForm.reset();
+                        otherCategoryContainer.classList.add('hidden');
+                        fetchDashboardMetrics();
+                    } else {
+                        Swal.fire({ icon: 'error', title: 'Save Failed', text: 'Failed to save the new transaction record.' });
+                    }
+                } catch (error) {
+                    Swal.fire({ icon: 'error', title: 'Server Unreachable', text: 'Server unreachable. Expense was not recorded.' });
+                }
+            }
         function loadExpenses() {
             const expensesContainer = document.getElementById('expenses-container');
             expensesContainer.innerHTML = '';
@@ -418,29 +418,40 @@
         }
 
         async function resetBudget() {
-            if (confirm('Are you sure you want to reset your budget? This will clear your current budget, expenses, and start fresh. Your account will remain intact.')) {
-                try {
-                    const response = await fetch(`${API_URL}/budget/reset`, {
-                        method: 'POST',
-                        headers: { 'Authorization': `Bearer ${token}` }
-                    });
+                Swal.fire({
+                    title: 'Are you sure?',
+                    text: "This will clear your current budget, expenses, and start fresh. Your account will remain intact.",
+                    icon: 'warning',
+                    showCancelButton: true,
+                    confirmButtonColor: '#dc3545',
+                    cancelButtonColor: '#6c757d',
+                    confirmButtonText: 'Yes, reset it!',
+                    cancelButtonText: 'Cancel'
+                }).then(async (result) => {
+                    if (result.isConfirmed) {
+                        try {
+                            const response = await fetch(`${API_URL}/budget/reset`, {
+                                method: 'POST',
+                                headers: { 'Authorization': `Bearer ${token}` }
+                            });
 
-                    if (response.ok) {
-                        document.getElementById('monthly-budget').value = '';
-                        document.getElementById('budget-period').value = 'monthly';
-                        document.getElementById('custom-period').value = '';
-                        customPeriodContainer.classList.add('hidden');
+                            if (response.ok) {
+                                document.getElementById('monthly-budget').value = '';
+                                document.getElementById('budget-period').value = 'monthly';
+                                document.getElementById('custom-period').value = '';
+                                customPeriodContainer.classList.add('hidden');
 
-                        alert('Your budget has been reset! Please set a new budget to continue.');
-                        fetchDashboardMetrics();
-                    } else {
-                        alert('Reset command rejected by engine.');
+                                Swal.fire({ icon: 'success', title: 'Reset Complete', text: 'Your budget has been reset! Please set a new budget to continue.', confirmButtonColor: '#2563eb' });
+                                fetchDashboardMetrics();
+                            } else {
+                                Swal.fire({ icon: 'error', title: 'Error', text: 'Reset command rejected by engine.' });
+                            }
+                        } catch (error) {
+                            Swal.fire({ icon: 'error', title: 'Error', text: 'Could not issue clear operations right now.' });
+                        }
                     }
-                } catch (error) {
-                    alert('Could not issue clear operations right now.');
-                }
+                });
             }
-        }
 
         function renderExpenseChart() {
             const ctx = document.getElementById('expenseChart');
