@@ -133,7 +133,6 @@
     </div>
 
     <script>
-        // DOM Elements
         const expenseForm = document.getElementById('expense-form');
         const expenseCategory = document.getElementById('expense-category');
         const otherCategoryContainer = document.getElementById('other-category-container');
@@ -144,14 +143,12 @@
         const budgetPeriod = document.getElementById('budget-period');
         const customPeriodContainer = document.getElementById('custom-period-container');
 
-        // Progress bar elements
         const progressFill = document.getElementById('progress-fill');
         const progressPercentage = document.getElementById('progress-percentage');
         const progressText = document.getElementById('progress-text');
         const budgetPeriodInfo = document.getElementById('budget-period-info');
 
-        // Secure API Tokens & Session Data
-        const API_URL = 'http://127.0.0.1:8000/api';
+        const API_URL = 'https://finanzen-backend-5pqy.onrender.com/';
         const token = localStorage.getItem('finanzenToken');
         let currentUser = localStorage.getItem('finanzenCurrentUser');
         let dashboardData = {
