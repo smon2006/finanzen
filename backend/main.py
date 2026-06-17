@@ -14,7 +14,7 @@ from database import engine, get_db
 
 SECRET_KEY = os.getenv("SECRET_KEY", "fallback_local_key_for_testing")
 ALGORITHM = "HS256"
-ACCESS_TOKEN_EXPIRE_MINUTES = 60
+ACCESS_TOKEN_EXPIRE_MINUTES = 10080
 
 models.Base.metadata.create_all(bind=engine)
 
