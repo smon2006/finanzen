@@ -1,10 +1,18 @@
+import os
+from dotenv import load_dotenv
 from sqlalchemy import create_engine
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 
-SQLALCHEMY_DATABASE_URL = "postgresql://neondb_owner:npg_iChZM6j7WwEA@ep-royal-meadow-ao878lbx.c-2.ap-southeast-1.aws.neon.tech/neondb?sslmode=require"
+load_dotenv()
+
+SQLALCHEMY_DATABASE_URL = os.getenv("DATABASE_URL")
+
+if not SQLALCHEMY_DATABASE_URL:
+    raise ValueError("ERROR: DATABASE_URL not found! Verify your .env file exists inside the backend folder.")
+
 engine = create_engine(
-    SQLALCHEMY_DATABASE_URL,
+    SQLALCHEMY_DATABASE_URL.split('?')[0] if '?' in SQLALCHEMY_DATABASE_URL else SQLALCHEMY_DATABASE_URL,
     connect_args={"sslmode": "require"}
 )
 
