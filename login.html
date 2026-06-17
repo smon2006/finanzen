@@ -17,11 +17,21 @@
                 <label for="login-username">Username</label>
                 <input type="text" id="login-username" class="form-control" placeholder="Enter your username" required>
             </div>
-            <div class="form-group">
+
+            <div class="form-group" style="margin-bottom: 5px;">
                 <label for="login-password">Password</label>
                 <input type="password" id="login-password" class="form-control" placeholder="Enter your password"
                     required>
             </div>
+
+            <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 20px;">
+                <input type="checkbox" id="show-password" style="width: auto; cursor: pointer; margin: 0;">
+                <label for="show-password"
+                    style="font-weight: normal; font-size: 0.85rem; cursor: pointer; color: #555; margin: 0;">
+                    Show password
+                </label>
+            </div>
+
             <button type="submit" class="submit-btn">Login</button>
             <div class="form-link">
                 <p>Don't have an account? <a href="signup.html">Sign up here</a></p>
@@ -30,6 +40,15 @@
     </div>
 
     <script>
+        // Added JavaScript Toggle Logic for Password Visibility
+        const showPassword = document.getElementById('show-password');
+        const passwordInput = document.getElementById('login-password');
+
+        showPassword.addEventListener('change', function () {
+            passwordInput.setAttribute('type', this.checked ? 'text' : 'password');
+        });
+
+        // Form Submit Handling
         document.getElementById('login-form').addEventListener('submit', async function (e) {
             e.preventDefault();
 
