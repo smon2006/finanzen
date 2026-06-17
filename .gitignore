@@ -1,0 +1,6 @@
+backend/__pycache__/
+backend/.env
+backend/finanzen.db
+venv/
+*.pyc
+.DS_Store
