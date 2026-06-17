@@ -40,7 +40,14 @@
     </div>
 
     <script>
-        // Added JavaScript Toggle Logic for Password Visibility
+        document.addEventListener('DOMContentLoaded', function () {
+                const token = localStorage.getItem('finanzenToken');
+                const currentUser = localStorage.getItem('finanzenCurrentUser');
+
+                if (token && currentUser) {
+                    window.location.href = 'dashboard.html';
+                }
+            });
         const showPassword = document.getElementById('show-password');
         const passwordInput = document.getElementById('login-password');
 
@@ -48,7 +55,6 @@
             passwordInput.setAttribute('type', this.checked ? 'text' : 'password');
         });
 
-        // Form Submit Handling
         document.getElementById('login-form').addEventListener('submit', async function (e) {
             e.preventDefault();
 

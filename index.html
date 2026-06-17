@@ -26,6 +26,16 @@
         </div>
         <a href="login.html" class="auth-button">LOGIN / SIGN UP</a>
     </div>
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            const token = localStorage.getItem('finanzenToken');
+            const currentUser = localStorage.getItem('finanzenCurrentUser');
+
+            if (token && currentUser) {
+                window.location.href = 'dashboard.html';
+            }
+        });
+    </script>
 </body>
 
 </html>

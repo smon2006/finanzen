@@ -66,6 +66,11 @@
     </div>
 
     <script>
+        document.addEventListener('DOMContentLoaded', function () {
+                if (localStorage.getItem('finanzenToken') && localStorage.getItem('finanzenCurrentUser')) {
+                    window.location.href = 'dashboard.html';
+                }
+            });
         const showPassword = document.getElementById('show-password');
         const passwordInput = document.getElementById('password');
 
