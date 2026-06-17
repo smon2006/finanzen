@@ -12,8 +12,12 @@ if not SQLALCHEMY_DATABASE_URL:
     raise ValueError("ERROR: DATABASE_URL not found! Verify your .env file exists inside the backend folder.")
 
 engine = create_engine(
-    SQLALCHEMY_DATABASE_URL.split('?')[0] if '?' in SQLALCHEMY_DATABASE_URL else SQLALCHEMY_DATABASE_URL,
-    connect_args={"sslmode": "require"}
+    SQLALCHEMY_DATABASE_URL,
+    connect_args={
+        "sslmode": "require"
+    },
+    pool_pre_ping=True,     
+    pool_recycle=300        
 )
 
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
