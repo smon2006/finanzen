@@ -249,17 +249,44 @@ h2 {
     margin-right: auto;
 }
 
+.dashboard-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(450px, 1fr));
+    gap: 30px;
+    margin-bottom: 20px;
+}
+
+.chart-container,
 .expense-list {
-    background-color: rgba(255, 255, 255, 0.15);
+    flex: 1;
+    min-width: 300px;
+}
+
+.expense-list {
+    max-height: 350px;
+    overflow-y: auto;
+    background: rgba(255, 255, 255, 0.05);
     padding: 20px;
+    border-radius: 12px;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.expense-list::-webkit-scrollbar {
+    width: 8px;
+}
+
+.expense-list::-webkit-scrollbar-track {
+    background: rgba(0, 0, 0, 0.1);
     border-radius: 10px;
-    color: white;
-    box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2);
-    backdrop-filter: blur(10px);
-    border: 1px solid rgba(255, 255, 255, 0.2);
-    max-width: 600px;
-    margin-left: auto;
-    margin-right: auto;
+}
+
+.expense-list::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.2);
+    border-radius: 10px;
+}
+
+.expense-list::-webkit-scrollbar-thumb:hover {
+    background: rgba(255, 255, 255, 0.4);
 }
 
 .expense-item {
@@ -309,6 +336,7 @@ h2 {
     font-size: 20px;
     color: white;
     text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.5);
+    
 }
 
 .progress-bar {
@@ -319,7 +347,7 @@ h2 {
     box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
     border: 1px solid rgba(255, 255, 255, 0.3);
     margin: 0 auto;
-    max-width: 600px;
+    width: 650px;
 }
 
 .progress-fill {
@@ -331,6 +359,8 @@ h2 {
     display: flex;
     align-items: center;
     justify-content: center;
+    min-width: max-content;
+    padding: 0 10px;
 }
 
 .progress-fill.warning {

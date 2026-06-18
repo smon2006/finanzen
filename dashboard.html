@@ -50,16 +50,16 @@
                 </div>
             </div>
 
-            <div id="budget-overview" class="budget-card hidden">
+            <div id="budget-overview" class="budget-card hidden" style="width: 100%; max-width: none !important; box-sizing: border-box;">
                 <h3>Budget Overview</h3>
                 <div id="budget-period-info" class="budget-period-info">
                 </div>
-                <div class="progress-container">
+                <div class="progress-container" style="width: 100%; max-width: none !important; box-sizing: border-box;">
                     <div class="progress-label">
                         <span>Budget Usage</span>
                         <span id="progress-percentage"></span>
                     </div>
-                    <div class="progress-bar">
+                    <div class="progress-bar" style="width: 100% !important;">
                         <div id="progress-fill" class="progress-fill" style="width: 0%">
                             <span id="progress-text" class="progress-text"></span>
                         </div>
@@ -84,17 +84,28 @@
                 <p id="rollover-alert"
                     style="color: #dc3545; font-size: 0.9em; display: none; text-align: center; margin-top: 15px; font-weight: bold;">
                 </p>
-
-                <div id="chart-wrapper" class="chart-container"
-                    style="position: relative; height: 250px; width: 100%; margin-top: 25px; margin-bottom: 25px;">
-                    <canvas id="expenseChart"></canvas>
+                
+                <button id="reset-budget-btn" class="reset-budget-btn" onclick="resetBudget()" style="margin-top: 20px;">Reset My
+                    Budget</button>
                 </div>
-
-                <button id="reset-budget-btn" class="reset-budget-btn" onclick="resetBudget()">Reset My Budget</button>
-            </div>
-        </div>
-
-        <div id="expense-tracker" class="expense-form hidden">
+                <div id="bottom-widgets" class="hidden"
+                    style="display: flex; flex-wrap: wrap; gap: 30px; margin-top: 40px; width: 100%; max-width: none !important; box-sizing: border-box;">
+                
+                    <div id="chart-card-container" class="budget-card"
+                        style="flex: 1; min-width: 300px; margin: 0; box-sizing: border-box;">
+                            <div id="chart-wrapper" class="chart-container" style="position: relative; height: 350px">
+                            <canvas id="expenseChart"></canvas>
+                        </div>
+                    </div>
+                
+                    <div id="expense-list" class="budget-card"
+                        style="flex: 1; min-width: 300px; margin: 0; max-height: 400px; overflow-y: auto; box-sizing: border-box;">
+                        <h3>Your Expenses</h3>
+                        <div id="expenses-container"></div>
+                    </div>
+                
+                </div>
+        <div id="expense-tracker" class="expense-form hidden" style="margin-top: 40px; width: 100%; max-width: none !important; box-sizing: border-box; padding: 25px; border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 16px;">
             <h3>Add New Expense</h3>
             <form id="expense-form" class="inline-expense-form">
                 <div class="form-group">
@@ -125,11 +136,7 @@
             </form>
         </div>
 
-        <div id="expense-list" class="expense-list hidden">
-            <h3>Your Expenses</h3>
-            <div id="expenses-container">
-            </div>
-        </div>
+        
     </div>
 
     <script>
@@ -140,6 +147,7 @@
         const budgetOverview = document.getElementById('budget-overview');
         const expenseTracker = document.getElementById('expense-tracker');
         const expenseList = document.getElementById('expense-list');
+        const bottomWidgets = document.getElementById('bottom-widgets');
         const budgetPeriod = document.getElementById('budget-period');
         const customPeriodContainer = document.getElementById('custom-period-container');
 
@@ -191,26 +199,31 @@
                 }
             }
         function syncUIState() {
-            document.getElementById('user-name').textContent = dashboardData.name || currentUser;
+                document.getElementById('user-name').textContent = dashboardData.name || currentUser;
 
-            if (dashboardData.budget > 0) {
-                budgetSetter.style.display = 'none';
-                budgetOverview.classList.remove('hidden');
-                expenseTracker.classList.remove('hidden');
-                expenseList.classList.remove('hidden');
+                if (dashboardData.budget > 0) {
+                    budgetSetter.style.display = 'none';
+                    budgetOverview.classList.remove('hidden');
+                    expenseTracker.classList.remove('hidden');
 
-                document.getElementById('display-budget').textContent = dashboardData.budget;
-                updateBudgetPeriodInfo();
-                loadExpenses();
-                updateBudgetSummary();
-                renderExpenseChart();
-            } else {
-                budgetSetter.style.display = 'block';
-                budgetOverview.classList.add('hidden');
-                expenseTracker.classList.add('hidden');
-                expenseList.classList.add('hidden');
+                    if (!dashboardData.expenses || dashboardData.expenses.length === 0) {
+                        bottomWidgets.classList.add('hidden');
+                    } else {
+                        bottomWidgets.classList.remove('hidden');
+                    }
+
+                    document.getElementById('display-budget').textContent = dashboardData.budget;
+                    updateBudgetPeriodInfo();
+                    loadExpenses();
+                    updateBudgetSummary();
+                    renderExpenseChart();
+                } else {
+                    budgetSetter.style.display = 'block';
+                    budgetOverview.classList.add('hidden');
+                    expenseTracker.classList.add('hidden');
+                    bottomWidgets.classList.add('hidden');
+                }
             }
-        }
 
         function toggleCustomPeriod() {
             if (budgetPeriod.value === 'custom') {
@@ -284,6 +297,7 @@
             }
 
             budgetPeriodInfo.textContent = periodText;
+            
         }
 
         async function addExpense(e) {
@@ -336,70 +350,101 @@
                     Swal.fire({ icon: 'error', title: 'Server Unreachable', text: 'Server unreachable. Expense was not recorded.' });
                 }
             }
-        function loadExpenses() {
-            const expensesContainer = document.getElementById('expenses-container');
-            expensesContainer.innerHTML = '';
+            let selectedCategoryFilter = null;
 
-            if (!dashboardData.expenses || dashboardData.expenses.length === 0) {
-                expensesContainer.innerHTML = '<p>No expenses added yet.</p>';
-                return;
-            }
+            function loadExpenses() {
+                const expensesContainer = document.getElementById('expenses-container');
+                const expenseListTitle = document.querySelector('#expense-list h3');
+                expensesContainer.innerHTML = '';
 
-            dashboardData.expenses.forEach(expense => {
-                const expenseElement = document.createElement('div');
-                expenseElement.className = 'expense-item';
-                expenseElement.innerHTML = `
-                    <div>
-                        <strong>${expense.category}</strong>
-                        <br>
-                        <small>${expense.description || 'No description'} - ${expense.date || ''}</small>
-                    </div>
-                    <div>₹${expense.amount}</div>
-                `;
-                expensesContainer.appendChild(expenseElement);
-            });
-        }
+                if (!dashboardData.expenses || dashboardData.expenses.length === 0) {
+                    expensesContainer.innerHTML = '<p>No expenses added yet.</p>';
+                    if (expenseListTitle) expenseListTitle.textContent = "Your Expenses";
+                    return;
+                }
 
-        function updateBudgetSummary() {
-            const totalExpenses = dashboardData.expenses.reduce((sum, expense) => sum + expense.amount, 0);
-            const budgetPercentage = dashboardData.budget > 0 ?
-                Math.min(100, (totalExpenses / dashboardData.budget) * 100) : 0;
+                let displayExpenses = [...dashboardData.expenses].reverse();
+                if (selectedCategoryFilter) {
+                    displayExpenses = dashboardData.expenses.filter(exp => exp.category === selectedCategoryFilter);
 
-            document.getElementById('total-expenses').textContent = totalExpenses;
-
-            const safeSavings = dashboardData.savings !== undefined ? dashboardData.savings : Math.max(0, dashboardData.budget - totalExpenses);
-            document.getElementById('remaining-budget').textContent = safeSavings;
-
-            const rolloverAlert = document.getElementById('rollover-alert');
-
-            if (dashboardData.rolloverMessage && dashboardData.rolloverMessage !== "") {
-                rolloverAlert.innerText = dashboardData.rolloverMessage;
-                rolloverAlert.style.display = "block";
-                progressFill.className = 'progress-fill danger';
-            } else {
-                rolloverAlert.style.display = "none";
-                rolloverAlert.innerText = "";
-
-                if (budgetPercentage > 80) {
-                    progressFill.className = 'progress-fill danger';
-                } else if (budgetPercentage > 60) {
-                    progressFill.className = 'progress-fill warning';
+                    if (expenseListTitle) {
+                        expenseListTitle.innerHTML = `Expenses for <span style="text-decoration: underline;">${selectedCategoryFilter}</span> <button onclick="resetCategoryFilter()" style="margin-left:10px; font-size:0.75rem; background:rgba(255,255,255,0.2); border:1px solid #fff; color:#fff; cursor:pointer; padding:2px 6px; border-radius:4px;">View All</button>`;
+                    }
                 } else {
-                    progressFill.className = 'progress-fill';
+                    if (expenseListTitle) expenseListTitle.textContent = "Your Expenses";
+                }
+
+                if (displayExpenses.length === 0) {
+                    expensesContainer.innerHTML = `<p>No transactions found for ${selectedCategoryFilter}.</p>`;
+                    return;
+                }
+                const MAX_ITEMS = 50;
+                const itemsToRender = displayExpenses.slice(0, MAX_ITEMS);
+
+                itemsToRender.forEach(expense => {
+                    const expenseElement = document.createElement('div');
+                    expenseElement.className = 'expense-item';
+                    expenseElement.innerHTML = `
+            <div>
+                <strong>${expense.category}</strong>
+                <br>
+                <small>${expense.description || 'No description'} - ${expense.date || ''}</small>
+            </div>
+            <div>₹${expense.amount}</div>
+        `;
+                    expensesContainer.appendChild(expenseElement);
+                });
+                if (displayExpenses.length > MAX_ITEMS) {
+                    const message = document.createElement('div');
+                    message.style.textAlign = 'center';
+                    message.style.marginTop = '15px';
+                    message.style.fontSize = '0.85rem';
+                    message.style.opacity = '0.7';
+                    message.innerText = `Showing the latest ${MAX_ITEMS} of ${displayExpenses.length} transactions.`;
+                    expensesContainer.appendChild(message);
                 }
             }
-
-            progressFill.style.width = `${budgetPercentage}%`;
-
-            if (totalExpenses > 0) {
-                progressText.textContent = `${Math.round(budgetPercentage)}%`;
-                progressPercentage.textContent = `${Math.round(budgetPercentage)}%`;
-            } else {
-                progressText.textContent = '';
-                progressPercentage.textContent = '';
+            function resetCategoryFilter() {
+                selectedCategoryFilter = null;
+                loadExpenses();
             }
-        }
 
+        function updateBudgetSummary() {
+                const totalExpenses = dashboardData.expenses.reduce((sum, expense) => sum + expense.amount, 0);
+                const budgetPercentage = dashboardData.budget > 0 ?
+                    Math.min(100, (totalExpenses / dashboardData.budget) * 100) : 0;
+
+                document.getElementById('total-expenses').textContent = totalExpenses;
+                const safeSavings = dashboardData.savings !== undefined ? dashboardData.savings : Math.max(0, dashboardData.budget - totalExpenses);
+                document.getElementById('remaining-budget').textContent = safeSavings;
+
+                const rolloverAlert = document.getElementById('rollover-alert');
+
+                if (totalExpenses > 0) {
+                    if (dashboardData.rolloverMessage && dashboardData.rolloverMessage !== "") {
+                        rolloverAlert.innerText = dashboardData.rolloverMessage;
+                        rolloverAlert.style.display = "block";
+                        progressFill.className = 'progress-fill danger';
+                    } else {
+                        rolloverAlert.style.display = "none";
+                        if (budgetPercentage > 80) progressFill.className = 'progress-fill danger';
+                        else if (budgetPercentage > 60) progressFill.className = 'progress-fill warning';
+                        else progressFill.className = 'progress-fill';
+                    }
+
+                    progressFill.style.display = 'flex';
+                    progressFill.style.width = `${budgetPercentage}%`;
+                    progressText.textContent = `${Math.round(budgetPercentage)}%`;
+                    progressPercentage.textContent = `${Math.round(budgetPercentage)}%`;
+                } else {
+                    // Handle logic for NO expenses
+                    progressFill.style.display = 'none'; 
+                    progressFill.style.width = '0%';
+                    progressText.textContent = '';       
+                    progressPercentage.textContent = '0%';
+                    rolloverAlert.style.display = "none";
+                }
+            }
         function toggleOtherCategory() {
             if (expenseCategory.value === 'Other') {
                 otherCategoryContainer.classList.remove('hidden');
@@ -503,6 +548,22 @@
                 options: {
                     responsive: true,
                     maintainAspectRatio: false,
+                    onClick: (event, elements) => {
+                        if (elements.length > 0) {
+                            const clickedElementIndex = elements[0].index;
+                            const clickedCategory = labels[clickedElementIndex];
+                            if (selectedCategoryFilter === clickedCategory) {
+                                selectedCategoryFilter = null;
+                            } else {
+                                selectedCategoryFilter = clickedCategory;
+                            }
+
+                            loadExpenses();
+                        } else {
+                            selectedCategoryFilter = null;
+                            loadExpenses();
+                        }
+                    },
                     plugins: {
                         legend: {
                             position: 'bottom',
