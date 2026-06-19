@@ -207,12 +207,12 @@
             }
         function syncUIState() {
                 document.getElementById('user-name').textContent = dashboardData.name || currentUser;
-
-                if (dashboardData.budget > 0) {
+                checkPastSessions();
+                if (dashboardData.hasActiveBudget) {
                     budgetSetter.style.display = 'none';
                     budgetOverview.classList.remove('hidden');
                     expenseTracker.classList.remove('hidden');
-                    checkPastSessions();
+                    
 
                     if (!dashboardData.expenses || dashboardData.expenses.length === 0) {
                         bottomWidgets.classList.add('hidden');
@@ -585,30 +585,32 @@
             });
         }
             async function checkPastSessions() {
-                try {
-                    const response = await fetch(`${API_URL}/archives`, {
-                        method: 'GET',
-                        headers: { 'Authorization': `Bearer ${token}` }
-                    });
+                    try {
+                        const response = await fetch(`${API_URL}/history`, {
+                            method: 'GET',
+                            headers: { 'Authorization': `Bearer ${token}` }
+                        });
 
-                    if (response.ok) {
-                        const data = await response.json();
-                        if (data.total_archived_sessions && data.total_archived_sessions > 0) {
-                            document.getElementById('history-btn').style.display = 'block';
-                        } else {
-                            document.getElementById('history-btn').style.display = 'none';
+                        if (response.ok) {
+                            const data = await response.json();
+                            const historyBtn = document.getElementById('history-btn');
+
+                            if (data.total_archived_sessions && data.total_archived_sessions > 0) {
+                                historyBtn.style.display = 'block'; 
+                            } else {
+                                historyBtn.style.display = 'none'; 
+                            }
                         }
+                    } catch (error) {
+                        console.error('Error checking past sessions:', error);
                     }
-                } catch (error) {
-                    console.error('Error checking past sessions:', error);
                 }
-            }
 
             async function showPastBudgets() {
                 try {
                     Swal.fire({ title: 'Loading History...', allowOutsideClick: false, didOpen: () => { Swal.showLoading(); } });
 
-                    const response = await fetch(`${API_URL}/archives`, {
+                    const response = await fetch(`${API_URL}/history`, {
                         method: 'GET',
                         headers: { 'Authorization': `Bearer ${token}` }
                     });
