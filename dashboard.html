@@ -679,6 +679,142 @@
                         Swal.fire({ icon: 'error', title: 'Error', text: 'Could not load past budgets.', background: '#1a233a', color: '#ffffff' });
                     }
                 }
+                    window.showSessionLedger = function (index) {
+                        const session = window.allSessionsData[index];
+                        if (!session) return;
+
+                        const uniqueCategories = [];
+                        if (session.expenses) {
+                            session.expenses.forEach(exp => {
+                                const cat = exp.category || 'General';
+                                if (!uniqueCategories.includes(cat)) {
+                                    uniqueCategories.push(cat);
+                                }
+                            });
+                        }
+
+                        const dropdownOptionsHtml = uniqueCategories.map(cat => `
+        <option value="${cat}" style="background: #1a233a; color: #fff;">${cat}</option>
+    `).join('');
+
+                        let initialRowsHtml = '';
+                        if (session.expenses && session.expenses.length > 0) {
+                            initialRowsHtml = session.expenses.map(exp => `
+            <tr style="border-bottom: 1px solid rgba(255,255,255,0.05);">
+                <td style="padding: 10px; text-align: left;">
+                    <span style="background: rgba(56,189,248,0.1); color: #38bdf8; padding: 2px 6px; border-radius: 4px; font-size: 0.8rem;">
+                        ${exp.category || 'General'}
+                    </span>
+                </td>
+                <td style="padding: 10px; color: #e2e8f0; text-align: left; font-size: 0.85rem;">
+                    ${exp.description || '—'}
+                </td>
+                <td style="padding: 10px; color: #a0aec0; text-align: left; font-size: 0.85rem;">
+                    ${exp.date || exp.timestamp || '—'}
+                </td>
+                <td style="padding: 10px; color: #34d399; text-align: right; font-weight: 600;">
+                    ₹${exp.amount}
+                </td>
+            </tr>
+        `).join('');
+                        } else {
+                            initialRowsHtml = `<tr><td colspan="4" style="padding: 20px; text-align: center; color: #a0aec0;">No items recorded in this session.</td></tr>`;
+                        }
+
+                        const overlay = document.createElement('div');
+                        overlay.id = 'expense-sub-popup';
+                        overlay.style = 'position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0, 0, 0, 0.75); display: flex; justify-content: center; align-items: center; z-index: 999999; font-family: system-ui, -apple-system, sans-serif;';
+
+                        overlay.innerHTML = `
+        <div style="background: #1a233a; width: 620px; max-width: 95%; border-radius: 12px; padding: 24px; border: 1px solid rgba(255, 255, 255, 0.1); box-shadow: 0 20px 25px -5px rgba(0,0,0,0.5); color: #ffffff;">
+            
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 18px; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 12px;">
+                <h3 style="margin: 0; font-size: 1.25rem; font-weight: 600; color: #ffffff; letter-spacing: 0.5px;">Expense Breakdown</h3>
+                
+                <div>
+                    <label for="modal-cat-select" style="font-size: 0.8rem; color: #a0aec0; margin-right: 6px;">Filter Category:</label>
+                    <select id="modal-cat-select" onchange="window.filterSessionLedgerByCategory(${index}, this.value)" 
+                            style="background: rgba(255,255,255,0.05); color: #ffffff; border: 1px solid rgba(255,255,255,0.15); border-radius: 4px; padding: 4px 8px; font-size: 0.85rem; outline: none; cursor: pointer;">
+                        <option value="all" style="background: #1a233a; color: #fff;">All Categories</option>
+                        ${dropdownOptionsHtml}
+                    </select>
+                </div>
+            </div>
+            
+            <div style="max-height: 280px; overflow-y: auto; margin-bottom: 20px; border-radius: 6px; background: rgba(0,0,0,0.15); padding: 4px;">
+                <table style="width: 100%; border-collapse: collapse; font-size: 0.9rem;">
+                    <thead>
+                        <tr style="border-bottom: 2px solid rgba(255,255,255,0.1); color: #a0aec0; font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.5px;">
+                            <th style="padding: 10px; text-align: left;">Category</th>
+                            <th style="padding: 10px; text-align: left;">Description</th>
+                            <th style="padding: 10px; text-align: left;">Date</th>
+                            <th style="padding: 8px; text-align: right;">Amount</th>
+                        </tr>
+                    </thead>
+                    <tbody id="modal-ledger-tbody">
+                        ${initialRowsHtml}
+                    </tbody>
+                </table>
+            </div>
+
+           <div style="text-align: center; display: flex; justify-content: center; gap: 12px;">
+                <button onclick="window.downloadSessionLedgerCSV(${index})" 
+                        style="background: #2563eb; color: #ffffff; border: none; padding: 10px 24px; font-size: 0.9rem; font-weight: 500; border-radius: 6px; cursor: pointer; transition: background 0.2s;"
+                        onmouseover="this.style.background='#1d4ed8'" 
+                        onmouseout="this.style.background='#2563eb'">
+                    Download CSV
+                </button>
+
+                <button onclick="document.getElementById('expense-sub-popup').remove()" 
+                        style="background: #2563eb; color: #ffffff; border: none; padding: 10px 24px; font-size: 0.9rem; font-weight: 500; border-radius: 6px; cursor: pointer; transition: background 0.2s;"
+                        onmouseover="this.style.background='#1d4ed8'" 
+                        onmouseout="this.style.background='#2563eb'">
+                    Back to History
+                </button>
+            </div>
+    `;
+
+                        document.body.appendChild(overlay);
+                    };
+
+                    window.filterSessionLedgerByCategory = function (index, selectedCategory) {
+                        const session = window.allSessionsData[index];
+                        const tbody = document.getElementById('modal-ledger-tbody');
+                        if (!session || !tbody) return;
+
+                        // Filter array based on matching chosen select parameter values
+                        const filteredExpenses = session.expenses.filter(exp => {
+                            if (selectedCategory === 'all') return true;
+                            const currentCat = exp.category || 'General';
+                            return currentCat === selectedCategory;
+                        });
+
+                        let rowsHtml = '';
+                        if (filteredExpenses.length > 0) {
+                            rowsHtml = filteredExpenses.map(exp => `
+            <tr style="border-bottom: 1px solid rgba(255,255,255,0.05);">
+                <td style="padding: 10px; text-align: left;">
+                    <span style="background: rgba(56,189,248,0.1); color: #38bdf8; padding: 2px 6px; border-radius: 4px; font-size: 0.8rem;">
+                        ${exp.category || 'General'}
+                    </span>
+                </td>
+                <td style="padding: 10px; color: #e2e8f0; text-align: left; font-size: 0.85rem;">
+                    ${exp.description || '—'}
+                </td>
+                <td style="padding: 10px; color: #a0aec0; text-align: left; font-size: 0.85rem;">
+                    ${exp.date || exp.timestamp || '—'}
+                </td>
+                <td style="padding: 10px; color: #34d399; text-align: right; font-weight: 600;">
+                    ₹${exp.amount}
+                </td>
+            </tr>
+        `).join('');
+                        } else {
+                            rowsHtml = `<tr><td colspan="4" style="padding: 20px; text-align: center; color: #a0aec0;">No items found matching this category.</td></tr>`;
+                        }
+
+                        tbody.innerHTML = rowsHtml;
+                    };
                 window.filterPastSessions = function () {
                     const selectedPeriod = document.getElementById('filter-period-type').value;
                     const selectedTimeframe = document.getElementById('filter-timeframe').value;
@@ -707,7 +843,7 @@
                         container.innerHTML = '<p style="text-align: center; color: #a0aec0; margin-top: 20px; font-size: 0.9em;">No matching session logs found.</p>';
                         return;
                     }
-                    filtered.forEach(session => {
+                    filtered.forEach((session,index) => {
                         const isOverBudget = session.total_spent > session.starting_budget;
                         const sessionSavings = session.starting_budget - session.total_spent;
                         const isCurrentActive = !session.end_date || session.end_date === 'Now' || session.end_date.trim() === '';
@@ -728,20 +864,108 @@
                             }
                         }
                         const showSavings = !isCurrentActive && didCompleteDuration;
-                        container.innerHTML += `
-            <div style="background: rgba(255, 255, 255, 0.05); padding: 15px; margin-bottom: 12px; border-radius: 8px; border: 1px solid rgba(255, 255, 255, 0.1); color: #ffffff;">
-                <strong style="color: #38bdf8; font-size: 1.05em;">Period: ${session.start_date} to ${session.end_date || 'Now'}</strong><br>
+                        let tableRowsHtml = '';
+                        if (session.expenses && session.expenses.length > 0) {
+                            tableRowsHtml = session.expenses.map(exp => `
+                <tr style="border-bottom: 1px solid rgba(255,255,255,0.05);">
+                    <td style="padding: 10px; color: #fff; text-align: left;">${exp.title || 'Untitled'}</td>
+                    <td style="padding: 10px; text-align: left;"><span style="background: rgba(56,189,248,0.1); color: #38bdf8; padding: 2px 6px; border-radius: 4px; font-size: 0.8rem;">${exp.category || 'General'}</span></td>
+                    <td style="padding: 10px; color: #a0aec0; text-align: left; font-size: 0.85rem;">${exp.description || '—'}</td>
+                    <td style="padding: 10px; color: #34d399; text-align: right; font-weight: 600;">₹${exp.amount}</td>
+                </tr>
+            `).join('');
+                        } else {
+                            tableRowsHtml = `<tr><td colspan="4" style="padding: 20px; text-align: center; color: #a0aec0;">No items recorded in this session.</td></tr>`;
+                        }
+
+                        const popupContentHtml = `
+            <div style="max-height: 300px; overflow-y: auto; margin-top: 10px;">
+                <table style="width: 100%; border-collapse: collapse; font-size: 0.9rem;">
+                    <thead>
+                        <tr style="border-bottom: 2px solid rgba(255,255,255,0.1); color: #a0aec0; font-size: 0.8rem; text-transform: uppercase;">
+                            <th style="padding: 8px; text-align: left;">Item</th>
+                            <th style="padding: 8px; text-align: left;">Category</th>
+                            <th style="padding: 8px; text-align: left;">Description</th>
+                            <th style="padding: 8px; text-align: right;">Amount</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${tableRowsHtml}
+                    </tbody>
+                </table>
+            </div>
+        `;
+                       container.innerHTML += `
+            <div onclick="window.showSessionLedger(${index})" 
+                 style="background: rgba(255, 255, 255, 0.05); padding: 15px; margin-bottom: 12px; border-radius: 8px; border: 1px solid rgba(255, 255, 255, 0.1); color: #ffffff; cursor: pointer; transition: background 0.2s;"
+                 onmouseover="this.style.background='rgba(255, 255, 255, 0.08)'" 
+                 onmouseout="this.style.background='rgba(255, 255, 255, 0.05)'">
+                
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
+                    <strong style="color: #38bdf8; font-size: 1.05em;">Period: ${session.start_date} to ${session.end_date || 'Now'}</strong>
+                    <span style="font-size: 0.72rem; color: #a0aec0; background: rgba(255,255,255,0.08); padding: 2px 6px; border-radius: 4px;">Click to view items</span>
+                </div>
                 <span style="color: #a0aec0;">Type:</span> ${session.period_type}<br>
                 <span style="color: #a0aec0;">Budget:</span> ₹${session.starting_budget}<br>
                 <span style="color: #a0aec0;">Spent:</span> <strong style="color: ${isOverBudget ? '#f87171' : '#34d399'};">₹${session.total_spent}</strong><br>
                 ${showSavings ? `
                     <span style="color: #a0aec0;">Saved:</span> <strong style="color: ${sessionSavings >= 0 ? '#10b981' : '#f87171'};">₹${sessionSavings >= 0 ? sessionSavings : 0}</strong><br>
                 ` : ''}
-                <small style="color: #718096;"><em>${session.expenses.length} expenses recorded</em></small>
+                <small style="color: #718096; display: block; margin-top: 4px;"><em>${session.expenses.length} expenses recorded</em></small>
             </div>
         `;
                     });
                 };
+                window.downloadSessionLedgerCSV = function (index) {
+                        const session = window.allSessionsData[index];
+                        if (!session || !session.expenses || session.expenses.length === 0) {
+                            Swal.fire('Empty Ledger', 'No expenses available to download.', 'warning');
+                            return;
+                        }
+
+                        let csvRows = ["Category,Description,Date,Amount"];
+
+                        session.expenses.forEach(exp => {
+                            const category = `"${(exp.category || 'General').replace(/"/g, '""')}"`;
+                            const description = `"${(exp.description || '—').replace(/"/g, '""')}"`;
+
+                            let rawDate = exp.date || exp.timestamp || '—';
+                            let formattedDate = rawDate;
+
+                            if (rawDate !== '—' && rawDate.includes('-')) {
+                                // Split the YYYY-MM-DD string
+                                const parts = rawDate.split(' ')[0].split('-');
+                                if (parts.length === 3 && parts[0].length === 4) {
+                                    const year = parts[0];
+                                    const month = parts[1];
+                                    const day = parts[2];
+                                    formattedDate = `${day}-${month}-${year}`; 
+                                }
+                            }
+
+                            const date = `=" ${formattedDate}"`;
+                            const amount = exp.amount || 0;
+
+                            csvRows.push(`${category},${description},${date},${amount}`);
+                        });
+
+                        const csvString = csvRows.join("\n");
+
+                        const blob = new Blob([new Uint8Array([0xEF, 0xBB, 0xBF]), csvString], { type: "text/csv;charset=utf-8;" });
+
+                        const link = document.createElement("a");
+                        if (navigator.msSaveBlob) {
+                            navigator.msSaveBlob(blob, `Expense_Breakdown_${session.start_date}.csv`);
+                        } else {
+                            const url = URL.createObjectURL(blob);
+                            link.setAttribute("href", url);
+                            link.setAttribute("download", `Expense_Breakdown_${session.start_date}_to_${session.end_date || 'Now'}.csv`);
+                            link.style.visibility = 'hidden';
+                            document.body.appendChild(link);
+                            link.click();
+                            document.body.removeChild(link);
+                        }
+                    };
     </script>
 </body>
 
