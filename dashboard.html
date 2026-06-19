@@ -178,6 +178,7 @@
             window.location.href = 'index.html';
         }
         document.addEventListener('DOMContentLoaded', function () {
+            window.checkBudgetExpiration();
             document.getElementById('user-name').textContent = currentUser;
             fetchDashboardMetrics();
         });
@@ -966,6 +967,45 @@
                             document.body.removeChild(link);
                         }
                     };
+                    window.checkBudgetExpiration = function () {
+                            const activeBudget = JSON.parse(localStorage.getItem('currentBudget'));
+
+                            if (!activeBudget || !activeBudget.end_date) return;
+
+                            const today = new Date();
+                            today.setHours(0, 0, 0, 0);
+
+                            const endDate = new Date(activeBudget.end_date);
+                            endDate.setHours(0, 0, 0, 0);
+
+                            if (today > endDate) {
+                                // The budget has expired!
+                                triggerAutoReset(activeBudget);
+                            }
+                        };
+
+                        window.triggerAutoReset = function (activeBudget) {
+                            Swal.fire({
+                                title: 'Budget Session Ended',
+                                text: 'Your allotted time for this budget has passed. The session has been securely saved to your history.',
+                                icon: 'info',
+                                background: '#1a233a',
+                                color: '#ffffff',
+                                confirmButtonColor: '#2563eb',
+                                confirmButtonText: 'Set New Budget',
+                                allowOutsideClick: false
+                            }).then((result) => {
+                                if (result.isConfirmed) {
+                                    if (!window.allSessionsData) window.allSessionsData = [];
+                                    window.allSessionsData.push(activeBudget);
+
+                                    localStorage.setItem('allSessionsData', JSON.stringify(window.allSessionsData));
+                                    localStorage.removeItem('currentBudget');
+
+                                    location.reload();
+                                }
+                            });
+                        };
     </script>
 </body>
 
