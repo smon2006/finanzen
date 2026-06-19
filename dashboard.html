@@ -90,7 +90,7 @@
                         Reset My Budget
                     </button>
                     <button id="history-btn" class="submit-btn" onclick="showPastBudgets()"
-                        style="display: none; flex: 1; margin-top: 0; background-color: #314b6e;">
+                        style="display: none; flex: 1; margin-top: 0; background-color: #314b6e; font-size: 16px !important;">
                         View Past Budgets
                     </button>
                 </div>
@@ -633,32 +633,45 @@
                         const data = await response.json();
 
                         if (data.sessions && data.sessions.length > 0) {
-                            let htmlContent = '<div style="text-align: left; max-height: 400px; overflow-y: auto; padding: 10px;">';
+                            window.allSessionsData = data.sessions;
 
-                            data.sessions.forEach(session => {
-                                const isOverBudget = session.total_spent > session.starting_budget;
-                                // Dark glassmorphic background box styling for the inner list items
-                                htmlContent += `
-                <div style="background: rgba(255, 255, 255, 0.05); padding: 15px; margin-bottom: 15px; border-radius: 8px; border: 1px solid rgba(255, 255, 255, 0.1); color: #ffffff;">
-                    <strong style="color: #38bdf8; font-size: 1.1em;">Period: ${session.start_date} to ${session.end_date || 'Now'}</strong><br>
-                    <span style="color: #a0aec0;">Type:</span> ${session.period_type}<br>
-                    <span style="color: #a0aec0;">Budget:</span> ₹${session.starting_budget}<br>
-                    <span style="color: #a0aec0;">Spent:</span> <strong style="color: ${isOverBudget ? '#f87171' : '#34d399'};">₹${session.total_spent}</strong><br>
-                    <small style="color: #718096;"><em>${session.expenses.length} expenses recorded</em></small>
-                </div>
-            `;
-                            });
-                            htmlContent += '</div>';
+                            let filterHeaderHtml = `
+    <div style="display: flex; gap: 10px; margin-bottom: 15px; padding: 0 5px;">
+        <div style="flex: 1; text-align: left;">
+            <label style="font-size: 0.8rem; color: #a0aec0; display: block; margin-bottom: 4px;">Period Cycle</label>
+            <select id="filter-period-type" onchange="filterPastSessions()" style="width: 100%; background: #1f293d !important; border: 1px solid rgba(255,255,255,0.15); border-radius: 6px; color: #fff !important; padding: 8px; font-size: 0.85rem; outline: none;">
+                <option value="all" style="background: #1f293d; color: #fff;">All Cycles</option>
+                <option value="monthly" style="background: #1f293d; color: #fff;">Monthly</option>
+                <option value="weekly" style="background: #1f293d; color: #fff;">Weekly</option>
+                <option value="yearly" style="background: #1f293d; color: #fff;">Yearly</option>
+                <option value="custom" style="background: #1f293d; color: #fff;">Custom</option>
+            </select>
+        </div>
+        <div style="flex: 1; text-align: left;">
+            <label style="font-size: 0.8rem; color: #a0aec0; display: block; margin-bottom: 4px;">Timeframe</label>
+            <select id="filter-timeframe" onchange="filterPastSessions()" style="width: 100%; background: #1f293d !important; border: 1px solid rgba(255,255,255,0.15); border-radius: 6px; color: #fff !important; padding: 8px; font-size: 0.85rem; outline: none;">
+                <option value="all" style="background: #1f293d; color: #fff;">All Time</option>
+                <option value="30" style="background: #1f293d; color: #fff;">Past 30 Days</option>
+                <option value="90" style="background: #1f293d; color: #fff;">Past 90 Days</option>
+                <option value="365" style="background: #1f293d; color: #fff;">Past Year</option>
+            </select>
+        </div>
+    </div>
+    <div id="sessions-modal-list" style="text-align: left; max-height: 300px; overflow-y: auto; padding: 5px;">
+        </div>
+`;git add dashboard.html
 
                             Swal.fire({
                                 title: 'Your Past Budgets',
-                                html: htmlContent,
+                                html: filterHeaderHtml,
                                 width: '600px',
                                 confirmButtonText: 'Close',
                                 confirmButtonColor: '#2563eb',
-                                // Theme configurations
                                 background: '#1a233a',
-                                color: '#ffffff'
+                                color: '#ffffff',
+                                didOpen: () => {
+                                    window.filterPastSessions();
+                                }
                             });
                         } else {
                             Swal.fire({ icon: 'info', title: 'No History', text: 'You do not have any past budgets yet.', background: '#1a233a', color: '#ffffff' });
@@ -667,6 +680,48 @@
                         Swal.fire({ icon: 'error', title: 'Error', text: 'Could not load past budgets.', background: '#1a233a', color: '#ffffff' });
                     }
                 }
+                window.filterPastSessions = function () {
+                    const selectedPeriod = document.getElementById('filter-period-type').value;
+                    const selectedTimeframe = document.getElementById('filter-timeframe').value;
+                    const container = document.getElementById('sessions-modal-list');
+
+                    if (!container || !window.allSessionsData) return;
+
+                    container.innerHTML = '';
+                    const now = new Date();
+
+                    const filtered = window.allSessionsData.filter(session => {
+                        // 1. Filter by Period Type
+                        if (selectedPeriod !== 'all' && session.period_type.toLowerCase() !== selectedPeriod) {
+                            return false;
+                        }
+                        if (selectedTimeframe !== 'all') {
+                            const sessionDate = new Date(session.start_date);
+                            const daysDifference = (now - sessionDate) / (1000 * 60 * 60 * 24);
+                            if (daysDifference > parseInt(selectedTimeframe)) {
+                                return false;
+                            }
+                        }
+                        return true;
+                    });
+
+                    if (filtered.length === 0) {
+                        container.innerHTML = '<p style="text-align: center; color: #a0aec0; margin-top: 20px; font-size: 0.9em;">No matching session logs found.</p>';
+                        return;
+                    }
+                    filtered.forEach(session => {
+                        const isOverBudget = session.total_spent > session.starting_budget;
+                        container.innerHTML += `
+            <div style="background: rgba(255, 255, 255, 0.05); padding: 15px; margin-bottom: 12px; border-radius: 8px; border: 1px solid rgba(255, 255, 255, 0.1); color: #ffffff;">
+                <strong style="color: #38bdf8; font-size: 1.05em;">Period: ${session.start_date} to ${session.end_date || 'Now'}</strong><br>
+                <span style="color: #a0aec0;">Type:</span> ${session.period_type}<br>
+                <span style="color: #a0aec0;">Budget:</span> ₹${session.starting_budget}<br>
+                <span style="color: #a0aec0;">Spent:</span> <strong style="color: ${isOverBudget ? '#f87171' : '#34d399'};">₹${session.total_spent}</strong><br>
+                <small style="color: #718096;"><em>${session.expenses.length} expenses recorded</em></small>
+            </div>
+        `;
+                    });
+                };
     </script>
 </body>
 
