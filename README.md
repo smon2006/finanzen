@@ -14,12 +14,15 @@
 
 ## ✨ Key Features
 
-* **Custom Budget Cycles:** Users can set strict monthly budgets or define custom day-cycles (e.g., bi-weekly paychecks) with automated rollover logic.
+* **Custom Budget Cycles:** Users can set strict weekly, monthly, or yearly budgets, or define custom day-cycles (e.g., bi-weekly paychecks) with automated rollover logic.
 * **Interactive Data Visualization:** Real-time expense breakdown using `Chart.js`, allowing users to filter transactions dynamically by clicking chart segments.
 * **Secure Authentication:** Robust user management featuring JWT (JSON Web Tokens) and `bcrypt` password hashing. Strict regex-based password policies enforced at the schema level.
 * **Automated System Maintenance:** Implemented cron-triggered API health checks to prevent server cold-starts, reducing initial load latency by over 90% for a seamless login experience.
 * **Responsive UI/UX:** Built with Vanilla JavaScript, HTML5, and CSS3. The interface seamlessly adapts to desktop, tablet, and mobile environments without relying on bloated front-end frameworks.
-
+* **Intelligent Savings Vault:** Automatically captures and stores your savings when a budget session resets to help you build savings. If you overspend and create an excess expense during a cycle, the system automatically pulls the required funds directly from this vault to cover the difference.
+* **Past Budget Session History:** Permanently preserves your expired or reset budget periods as historical dashboard cards instead of deleting them, allowing you to easily track your financial progress over time.
+* **Previous Session Expense Breakdown:** Features a built-in interactive viewer that lets you open any past budget session to inspect its specific itemized transactions and filter those expenses by category.
+* **Excel-Optimized CSV Downloads:** Allows you to export the exact expense ledger of any past budget session into a clean CSV spreadsheet, specifically formatted to prevent date glitches or broken text errors in Microsoft Excel.
 ---
 
 ## 🏗️ System Architecture & Tech Stack
