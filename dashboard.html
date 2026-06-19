@@ -79,11 +79,13 @@
                         <div class="budget-stat-value">₹<span id="remaining-budget">0</span></div>
                         <div class="budget-stat-label">Remaining</div>
                     </div>
+                    <div class="budget-stat" style="background: rgba(16, 185, 129, 0.1); border: 1px solid rgba(16, 185, 129, 0.3);">
+                        <div class="budget-stat-value" style="color: #10b981;">₹<span id="vault-balance">0</span></div>
+                        <div class="budget-stat-label" style="color: #10b981; font-weight: bold;">Savings Vault</div>
+                    </div>
                 </div>
 
-                <p id="rollover-alert"
-                    style="color: #dc3545; font-size: 0.9em; display: none; text-align: center; margin-top: 15px; font-weight: bold;">
-                </p>
+                
                 
                 <div id="budget-action-buttons" style="display: flex; gap: 10px; width: 100%; margin-top: 20px;">
                     <button id="reset-budget-btn" class="reset-budget-btn" onclick="resetBudget()" style="flex: 1; margin-top: 0;">
@@ -166,12 +168,14 @@
         const API_URL = 'https://finanzen-backend-5pqy.onrender.com/api';
         const token = localStorage.getItem('finanzenToken');
         let currentUser = localStorage.getItem('finanzenCurrentUser');
+        let selectedCategoryFilter = null;
         let dashboardData = {
             name: currentUser || "User",
             budget: 0,
             budgetPeriod: 'monthly',
             customDays: null,
-            expenses: []
+            expenses: [],
+            savingsVault: 0
         };
         let expenseChartInstance = null;
         if (!token || !currentUser) {
@@ -196,7 +200,19 @@
                     });
 
                     if (response.ok) {
-                        dashboardData = await response.json();
+                        const serverData = await response.json();
+
+                        dashboardData = {
+                            name: serverData.name || currentUser,
+                            hasActiveBudget: serverData.hasActiveBudget !== undefined ? serverData.hasActiveBudget : true,
+                            budget: serverData.base_budget !== undefined ? serverData.base_budget : (serverData.budget || 0),
+                            budgetPeriod: serverData.budget_period || serverData.period || 'monthly',
+                            customDays: serverData.custom_days || serverData.customDays || null,
+                            expenses: serverData.expenses || [],
+                            savings: serverData.savings,
+                            rolloverMessage: serverData.rolloverMessage || ""
+                        };
+
                         syncUIState();
                     } else if (response.status === 401) {
                         logout();
@@ -275,6 +291,10 @@
                 });
 
                 if (response.ok) {
+                    dashboardData.budget = budget;
+                    dashboardData.budgetPeriod = period;
+                    dashboardData.customDays = customDays;
+
                     Swal.fire({ icon: 'success', title: 'Success!', text: 'Budget set successfully!', confirmButtonColor: '#2563eb' });
                     fetchDashboardMetrics();
                 } else {
@@ -334,6 +354,34 @@
                     }
                 }
 
+                const totalExpenses = dashboardData.expenses ? dashboardData.expenses.reduce((sum, exp) => sum + exp.amount, 0) : 0;
+                const currentRemaining = dashboardData.budget - totalExpenses;
+                let drawdownAmount = 0;
+                let vaultMessage = '';
+                let isDrawdown = false;
+
+                if (amount > currentRemaining) {
+                    const deficit = amount - Math.max(0, currentRemaining);
+                    let vaultBalance = parseFloat(localStorage.getItem('globalSavingsVault')) || 0;
+
+                    if (vaultBalance > 0) {
+                        if (vaultBalance >= deficit) {
+                            vaultBalance -= deficit;
+                            drawdownAmount = deficit;
+                            vaultMessage = `₹${deficit} has been safely withdrawn from your Savings Vault to cover this expense.`;
+                            isDrawdown = true;
+                        } else {
+                            drawdownAmount = vaultBalance;
+                            vaultMessage = `Your Savings Vault was emptied (₹${vaultBalance} withdrawn) to partially cover this expense. You are now in a deficit!`;
+                            vaultBalance = 0;
+                            isDrawdown = true;
+                        }
+                        localStorage.setItem('globalSavingsVault', vaultBalance);
+                    } else {
+                        vaultMessage = `Warning: You have completely overspent your budget and your Savings Vault is empty!`;
+                    }
+                }
+
                 try {
                     const response = await fetch(`${API_URL}/expenses`, {
                         method: 'POST',
@@ -351,6 +399,17 @@
                     if (response.ok) {
                         expenseForm.reset();
                         otherCategoryContainer.classList.add('hidden');
+
+                        if (vaultMessage) {
+                            Swal.fire({
+                                title: isDrawdown ? '🛡️ Reserve Drawdown' : '⚠️ Overbudget Alert',
+                                text: vaultMessage,
+                                icon: isDrawdown ? 'info' : 'warning',
+                                background: '#1a233a',
+                                color: '#ffffff',
+                                confirmButtonColor: '#2563eb'
+                            });
+                        }
                         fetchDashboardMetrics();
                     } else {
                         Swal.fire({ icon: 'error', title: 'Save Failed', text: 'Failed to save the new transaction record.' });
@@ -359,8 +418,6 @@
                     Swal.fire({ icon: 'error', title: 'Server Unreachable', text: 'Server unreachable. Expense was not recorded.' });
                 }
             }
-            let selectedCategoryFilter = null;
-
             function loadExpenses() {
                 const expensesContainer = document.getElementById('expenses-container');
                 const expenseListTitle = document.querySelector('#expense-list h3');
@@ -418,41 +475,40 @@
                 loadExpenses();
             }
 
-        function updateBudgetSummary() {
-                const totalExpenses = dashboardData.expenses.reduce((sum, expense) => sum + expense.amount, 0);
-                const budgetPercentage = dashboardData.budget > 0 ?
-                    Math.min(100, (totalExpenses / dashboardData.budget) * 100) : 0;
+       function updateBudgetSummary() {
+            const totalExpenses = dashboardData.expenses.reduce((sum, expense) => sum + expense.amount, 0);
+            const budgetPercentage = dashboardData.budget > 0 ?
+                Math.min(100, (totalExpenses / dashboardData.budget) * 100) : 0;
 
-                document.getElementById('total-expenses').textContent = totalExpenses;
-                const safeSavings = dashboardData.savings !== undefined ? dashboardData.savings : Math.max(0, dashboardData.budget - totalExpenses);
-                document.getElementById('remaining-budget').textContent = safeSavings;
+            document.getElementById('total-expenses').textContent = totalExpenses;
+            const safeSavings = dashboardData.savings !== undefined ? dashboardData.savings : Math.max(0, dashboardData.budget - totalExpenses);
+            document.getElementById('remaining-budget').textContent = safeSavings;
 
-                const rolloverAlert = document.getElementById('rollover-alert');
-
-                if (totalExpenses > 0) {
-                    if (dashboardData.rolloverMessage && dashboardData.rolloverMessage !== "") {
-                        rolloverAlert.innerText = dashboardData.rolloverMessage;
-                        rolloverAlert.style.display = "block";
-                        progressFill.className = 'progress-fill danger';
-                    } else {
-                        rolloverAlert.style.display = "none";
-                        if (budgetPercentage > 80) progressFill.className = 'progress-fill danger';
-                        else if (budgetPercentage > 60) progressFill.className = 'progress-fill warning';
-                        else progressFill.className = 'progress-fill';
-                    }
-
-                    progressFill.style.display = 'flex';
-                    progressFill.style.width = `${budgetPercentage}%`;
-                    progressText.textContent = `${Math.round(budgetPercentage)}%`;
-                    progressPercentage.textContent = `${Math.round(budgetPercentage)}%`;
-                } else {
-                    progressFill.style.display = 'none'; 
-                    progressFill.style.width = '0%';
-                    progressText.textContent = '';       
-                    progressPercentage.textContent = '0%';
-                    rolloverAlert.style.display = "none";
-                }
+            const vaultDisplay = document.getElementById('vault-balance');
+            if (vaultDisplay) {
+                vaultDisplay.textContent = parseFloat(localStorage.getItem('globalSavingsVault')) || 0;
             }
+
+            if (totalExpenses > 0) {
+                if (dashboardData.rolloverMessage && dashboardData.rolloverMessage !== "") {
+                    progressFill.className = 'progress-fill danger';
+                } else {
+                    if (budgetPercentage > 80) progressFill.className = 'progress-fill danger';
+                    else if (budgetPercentage > 60) progressFill.className = 'progress-fill warning';
+                    else progressFill.className = 'progress-fill';
+                }
+
+                progressFill.style.display = 'flex';
+                progressFill.style.width = `${budgetPercentage}%`;
+                progressText.textContent = `${Math.round(budgetPercentage)}%`;
+                progressPercentage.textContent = `${Math.round(budgetPercentage)}%`;
+            } else {
+                progressFill.style.display = 'none';
+                progressFill.style.width = '0%';
+                progressText.textContent = '';
+                progressPercentage.textContent = '0%';
+            }
+        }
         function toggleOtherCategory() {
             if (expenseCategory.value === 'Other') {
                 otherCategoryContainer.classList.remove('hidden');
@@ -979,33 +1035,48 @@
                             endDate.setHours(0, 0, 0, 0);
 
                             if (today > endDate) {
-                                // The budget has expired!
                                 triggerAutoReset(activeBudget);
                             }
                         };
 
                         window.triggerAutoReset = function (activeBudget) {
-                            Swal.fire({
-                                title: 'Budget Session Ended',
-                                text: 'Your allotted time for this budget has passed. The session has been securely saved to your history.',
-                                icon: 'info',
-                                background: '#1a233a',
-                                color: '#ffffff',
-                                confirmButtonColor: '#2563eb',
-                                confirmButtonText: 'Set New Budget',
-                                allowOutsideClick: false
-                            }).then((result) => {
-                                if (result.isConfirmed) {
-                                    if (!window.allSessionsData) window.allSessionsData = [];
-                                    window.allSessionsData.push(activeBudget);
+                                const totalSpent = activeBudget.expenses ? activeBudget.expenses.reduce((sum, exp) => sum + exp.amount, 0) : 0;
+                                const savedAmount = activeBudget.starting_budget - totalSpent;
+                                let vaultMessage = '';
 
-                                    localStorage.setItem('allSessionsData', JSON.stringify(window.allSessionsData));
-                                    localStorage.removeItem('currentBudget');
-
-                                    location.reload();
+                                if (savedAmount > 0) {
+                                    let currentVault = parseFloat(localStorage.getItem('globalSavingsVault')) || 0;
+                                    currentVault += savedAmount;
+                                    localStorage.setItem('globalSavingsVault', currentVault);
+                                    vaultMessage = `<br><br><span style="color:#10b981; font-weight:bold;">Great job! You saved ₹${savedAmount} this cycle. It has been added to your Savings Vault.</span>`;
+                                } else if (savedAmount < 0) {
+                                    vaultMessage = `<br><br><span style="color:#f87171; font-weight:bold;">You overspent by ₹${Math.abs(savedAmount)} this cycle.</span>`;
                                 }
-                            });
-                        };
+
+                                Swal.fire({
+                                    title: 'Budget Session Ended',
+                                    html: `Your allotted time for this budget has passed. The session has been securely saved to your history.${vaultMessage}`,
+                                    icon: 'info',
+                                    background: '#1a233a',
+                                    color: '#ffffff',
+                                    confirmButtonColor: '#2563eb',
+                                    confirmButtonText: 'Set New Budget',
+                                    allowOutsideClick: false
+                                }).then(async (result) => { // <-- Note the 'async' here!
+                                    if (result.isConfirmed) {
+                                        try {
+                                            await fetch(`${API_URL}/budget/reset`, {
+                                                method: 'POST',
+                                                headers: { 'Authorization': `Bearer ${token}` }
+                                            });
+                                        } catch (error) {
+                                            console.error('Backend reset sync failed:', error);
+                                        }
+                                        localStorage.removeItem('currentBudget');
+                                        location.reload();
+                                    }
+                                });
+                            };
     </script>
 </body>
 
