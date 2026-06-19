@@ -1,13 +1,13 @@
 import re
-from pydantic import BaseModel, EmailStr, Field,field_validator
+from datetime import datetime
+from pydantic import BaseModel, EmailStr, Field, field_validator
 from typing import Optional, List
 
-# Base properties for an expense
 class ExpenseBase(BaseModel):
     amount: float
     category: str
     description: Optional[str] = None
-    date: str
+    date: Optional[datetime] = None 
 
 class ExpenseCreate(ExpenseBase):
     pass
@@ -15,6 +15,25 @@ class ExpenseCreate(ExpenseBase):
 class ExpenseOut(ExpenseBase):
     id: int
     user_id: int
+    budget_period_id: Optional[int] = None 
+
+    class Config:
+        from_attributes = True
+class BudgetPeriodBase(BaseModel):
+    base_budget: float
+    budget_period: str
+    custom_days: Optional[int] = None
+
+class BudgetPeriodCreate(BudgetPeriodBase):
+    pass
+
+class BudgetPeriodOut(BudgetPeriodBase):
+    id: int
+    user_id: int
+    added_funds: float
+    start_date: datetime
+    end_date: Optional[datetime] = None
+    status: str
 
     class Config:
         from_attributes = True
@@ -23,7 +42,6 @@ class UserSignUp(BaseModel):
     name: str
     email: EmailStr
     
-    # Username Rules: 5-15 chars, letters & numbers only
     username: str = Field(
         ..., 
         min_length=5, 
@@ -32,7 +50,6 @@ class UserSignUp(BaseModel):
         description="Must be 5-15 alphanumeric characters."
     )
     
-    #Password Rules: Min 8 chars, 1 Upper, 1 Lower, 1 Number, 1 Special
     password: str  
 
     @field_validator('password')
@@ -54,14 +71,11 @@ class UserLogin(BaseModel):
     username: str
     password: str
 
-class BudgetUpdate(BaseModel):
-    budget: float
-    budget_period: str
-    custom_days: Optional[int] = None
-
 class UserOut(BaseModel):
-    name: str
+    id: int
     username: str
-    budget: float
-    budget_period: str
-    custom_days: Optional[int] = None
+    name: str
+    savings_reserve: float 
+
+    class Config:
+        from_attributes = True

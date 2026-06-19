@@ -259,7 +259,7 @@
                         'Authorization': `Bearer ${token}`
                     },
                     body: JSON.stringify({
-                        budget: budget,
+                        base_budget: budget,
                         budget_period: period,
                         custom_days: customDays
                     })
@@ -437,7 +437,6 @@
                     progressText.textContent = `${Math.round(budgetPercentage)}%`;
                     progressPercentage.textContent = `${Math.round(budgetPercentage)}%`;
                 } else {
-                    // Handle logic for NO expenses
                     progressFill.style.display = 'none'; 
                     progressFill.style.width = '0%';
                     progressText.textContent = '';       

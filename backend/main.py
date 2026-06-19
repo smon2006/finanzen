@@ -2,8 +2,7 @@ from fastapi import FastAPI, Depends, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.orm import Session
-from datetime import datetime, timedelta
-from pydantic import BaseModel
+from datetime import datetime, timedelta, timezone
 from typing import Optional
 import jwt
 import bcrypt
@@ -15,7 +14,6 @@ from database import engine, get_db
 SECRET_KEY = os.getenv("SECRET_KEY", "fallback_local_key_for_testing")
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 10080
-
 models.Base.metadata.create_all(bind=engine)
 
 app = FastAPI(title="FINANZEN Core Engine")
@@ -27,19 +25,6 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
-class BudgetUpdate(BaseModel):
-    budget: float
-    budget_period: str
-    custom_days: Optional[int] = None
-
-class ExpenseCreate(BaseModel):
-    amount: float
-    category: str
-    description: Optional[str] = None
-
-
-
 def get_password_hash(password: str) -> str:
     pwd_bytes = password.encode('utf-8')
     salt = bcrypt.gensalt()
@@ -53,9 +38,21 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
 
 def create_access_token(data: dict) -> str:
     to_encode = data.copy()
-    expire = datetime.utcnow() + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+    expire = datetime.now(timezone.utc) + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
     to_encode.update({"exp": expire})
     return jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
+
+def calculate_horizon_end_date(start_date: datetime, period: str, custom_days: Optional[int] = None) -> datetime:
+    period_lower = period.lower()
+    if period_lower == "weekly":
+        return start_date + timedelta(weeks=1)
+    elif period_lower == "monthly":
+        return start_date + timedelta(days=30)  
+    elif period_lower == "yearly":
+        return start_date + timedelta(days=365)
+    elif period_lower == "custom" and custom_days:
+        return start_date + timedelta(days=custom_days)
+    return start_date + timedelta(days=30)
 
 security = HTTPBearer()
 
@@ -75,7 +72,6 @@ def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(securit
     return user
 
 
-
 @app.post("/api/signup", status_code=status.HTTP_201_CREATED)
 def sign_up(user_data: schemas.UserSignUp, db: Session = Depends(get_db)):
     db_user = db.query(models.User).filter(models.User.username == user_data.username).first()
@@ -92,7 +88,8 @@ def sign_up(user_data: schemas.UserSignUp, db: Session = Depends(get_db)):
         name=user_data.name,
         email=user_data.email,
         username=user_data.username,
-        password_hash=hashed_password
+        password_hash=hashed_password,
+        savings_reserve=0.0
     )
     
     db.add(new_user)
@@ -113,11 +110,23 @@ def login(credentials: schemas.UserLogin, db: Session = Depends(get_db)):
     token = create_access_token(data={"sub": user.username})
     return {"access_token": token, "token_type": "bearer", "name": user.name}
 
-
-
 @app.get("/api/dashboard")
 def get_dashboard(current_user: models.User = Depends(get_current_user), db: Session = Depends(get_db)):
-    expenses = db.query(models.Expense).filter(models.Expense.user_id == current_user.id).all()
+    active_budget = db.query(models.BudgetPeriod).filter(
+        models.BudgetPeriod.user_id == current_user.id,
+        models.BudgetPeriod.status == "ACTIVE"
+    ).first()
+    
+    if active_budget:
+        expenses = db.query(models.Expense).filter(models.Expense.budget_period_id == active_budget.id).all()
+        budget = active_budget.base_budget
+        period = active_budget.budget_period or "monthly"
+        custom_days = active_budget.custom_days
+    else:
+        expenses = db.query(models.Expense).filter(models.Expense.user_id == current_user.id, models.Expense.budget_period_id == None).all()
+        budget = 0
+        period = "monthly"
+        custom_days = None
     
     expenses_list = [
         {
@@ -130,9 +139,7 @@ def get_dashboard(current_user: models.User = Depends(get_current_user), db: Ses
         for exp in expenses
     ]
 
-    budget = current_user.budget or 0
     total_spent = sum(exp.amount for exp in expenses)
-    period = current_user.budget_period or "monthly"
     
     savings = 0
     rollover_deficit = 0
@@ -142,14 +149,15 @@ def get_dashboard(current_user: models.User = Depends(get_current_user), db: Ses
         savings = 0
         rollover_deficit = total_spent - budget
         
-        if period == "weekly":
+        period_lower = period.lower()
+        if period_lower == "weekly":
             next_cycle = "next week's"
-        elif period == "monthly":
+        elif period_lower == "monthly":
             next_cycle = "next month's"
-        elif period == "yearly":
+        elif period_lower == "yearly":
             next_cycle = "next year's"
-        elif period == "custom":
-            days = current_user.custom_days or 0
+        elif period_lower == "custom":
+            days = custom_days or 0
             next_cycle = f"your next {days}-day cycle"
         else:
             next_cycle = "your next"
@@ -162,31 +170,75 @@ def get_dashboard(current_user: models.User = Depends(get_current_user), db: Ses
         "name": current_user.name,
         "budget": budget,
         "budgetPeriod": period,
-        "customDays": current_user.custom_days,
+        "customDays": custom_days,
         "expenses": expenses_list,
         "savings": savings,
         "rolloverDeficit": rollover_deficit,
         "rolloverMessage": rollover_message
     }
 
+
 @app.post("/api/budget")
-def set_budget(budget_data: BudgetUpdate, current_user: models.User = Depends(get_current_user), db: Session = Depends(get_db)):
-    current_user.budget = budget_data.budget
-    current_user.budget_period = budget_data.budget_period
-    current_user.custom_days = budget_data.custom_days
+def set_budget(budget_data: schemas.BudgetPeriodCreate, current_user: models.User = Depends(get_current_user), db: Session = Depends(get_db)):
+    active_budget = db.query(models.BudgetPeriod).filter(
+        models.BudgetPeriod.user_id == current_user.id,
+        models.BudgetPeriod.status == "ACTIVE"
+    ).first()
+    
+    now = datetime.now(timezone.utc)
+    end_date = calculate_horizon_end_date(now, budget_data.budget_period, budget_data.custom_days)
+    
+    last_archived = db.query(models.BudgetPeriod).filter(
+        models.BudgetPeriod.user_id == current_user.id,
+        models.BudgetPeriod.status == "ARCHIVED"
+    ).order_by(models.BudgetPeriod.id.desc()).first()
+    
+    deficit_deduction = 0.0
+    if last_archived:
+        archived_expenses = db.query(models.Expense).filter(models.Expense.budget_period_id == last_archived.id).all()
+        archived_spent = sum(exp.amount for exp in archived_expenses)
+        if archived_spent > last_archived.base_budget:
+            deficit_deduction = archived_spent - last_archived.base_budget
+            
+    final_starting_budget = max(0.0, budget_data.base_budget - deficit_deduction)
+    
+    if active_budget:
+        active_budget.base_budget = final_starting_budget
+        active_budget.budget_period = budget_data.budget_period
+        active_budget.custom_days = budget_data.custom_days
+        active_budget.end_date = end_date
+    else:
+        active_budget = models.BudgetPeriod(
+            user_id=current_user.id,
+            base_budget=final_starting_budget,
+            budget_period=budget_data.budget_period,
+            custom_days=budget_data.custom_days,
+            start_date=now,
+            end_date=end_date,
+            status="ACTIVE"
+        )
+        db.add(active_budget)
     
     db.commit()
     return {"message": "Budget updated successfully"}
 
 
 @app.post("/api/expenses")
-def add_expense(expense_data: ExpenseCreate, current_user: models.User = Depends(get_current_user), db: Session = Depends(get_db)):
+def add_expense(expense_data: schemas.ExpenseCreate, current_user: models.User = Depends(get_current_user), db: Session = Depends(get_db)):
+    active_budget = db.query(models.BudgetPeriod).filter(
+        models.BudgetPeriod.user_id == current_user.id,
+        models.BudgetPeriod.status == "ACTIVE"
+    ).first()
+    
+    bp_id = active_budget.id if active_budget else None
+    
     new_expense = models.Expense(
         amount=expense_data.amount,
         category=expense_data.category,
         description=expense_data.description,
         user_id=current_user.id,
-        date=datetime.utcnow() 
+        budget_period_id=bp_id,
+        date=datetime.now(timezone.utc)
     )
     
     db.add(new_expense)
@@ -196,10 +248,22 @@ def add_expense(expense_data: ExpenseCreate, current_user: models.User = Depends
 
 @app.post("/api/budget/reset")
 def reset_budget(current_user: models.User = Depends(get_current_user), db: Session = Depends(get_db)):
-    current_user.budget = 0
-    current_user.budget_period = 'monthly'
-    current_user.custom_days = None
-    db.query(models.Expense).filter(models.Expense.user_id == current_user.id).delete()
+    active_budget = db.query(models.BudgetPeriod).filter(
+        models.BudgetPeriod.user_id == current_user.id,
+        models.BudgetPeriod.status == "ACTIVE"
+    ).first()
     
+    if active_budget:
+        expenses = db.query(models.Expense).filter(models.Expense.budget_period_id == active_budget.id).all()
+        total_spent = sum(exp.amount for exp in expenses)
+        budget = active_budget.base_budget
+        
+        if total_spent < budget:
+            surplus = budget - total_spent
+            current_user.savings_reserve += surplus
+        
+        active_budget.status = "ARCHIVED"
+        active_budget.end_date = datetime.now(timezone.utc)
+        
     db.commit()
-    return {"message": "Budget and expenses wiped clean"}
+    return {"message": "Budget and expenses archived clean"}
