@@ -267,3 +267,25 @@ def reset_budget(current_user: models.User = Depends(get_current_user), db: Sess
         
     db.commit()
     return {"message": "Budget and expenses archived clean"}
+@app.get("/api/history")
+def get_expense_history(current_user: models.User = Depends(get_current_user), db: Session = Depends(get_db)):
+    all_expenses = db.query(models.Expense).filter(
+        models.Expense.user_id == current_user.id
+    ).order_by(models.Expense.date.desc()).all()
+    
+    history_list = [
+        {
+            "id": exp.id,
+            "amount": exp.amount,
+            "category": exp.category,
+            "description": exp.description,
+            "date": exp.date.strftime("%Y-%m-%d") if hasattr(exp.date, 'strftime') else (str(exp.date)[:10] if exp.date else "")
+        }
+        for exp in all_expenses
+    ]
+    
+    return {
+        "name": current_user.name,
+        "total_historical_expenses": len(history_list),
+        "history": history_list
+    }
