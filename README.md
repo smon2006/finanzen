@@ -50,7 +50,11 @@ The database is highly normalized and utilizes proper indexing (`index=True` on 
 
 * **`Users` Table:** Manages credentials, hashed passwords, and individual budget cycle preferences. One-to-Many relationship with Expenses.
 * **`Expenses` Table:** Tracks individual transactions, linked to users via foreign keys (`user_id`), optimized with cascading deletes.
+* **`Budget Sessions` Table (History):** Stores the data for both your current cycle and all past cycles. It records the starting budget, the final total spent, the cycle's start/end dates, and whether the session is active or archived.
 
+### How the Data Flows
+* **On Reset:** The active session's status changes from "Active" to "Archived". The system calculates the difference between your starting budget and total spent, then updates the vault balance in your `Users` table.
+* **On Overspending:** If your expenses cross your budget, the system checks and deducts the excess amount from your vault balance to keep your data accurate.
 ---
 
 ## 🚀 Local Installation & Setup
