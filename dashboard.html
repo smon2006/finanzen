@@ -733,6 +733,7 @@
                 <strong style="color: #38bdf8; font-size: 1.05em;">Period: ${session.start_date} to ${session.end_date || 'Now'}</strong><br>
                 <span style="color: #a0aec0;">Type:</span> ${session.period_type}<br>
                 <span style="color: #a0aec0;">Budget:</span> ₹${session.starting_budget}<br>
+                <span style="color: #a0aec0;">Spent:</span> <strong style="color: ${isOverBudget ? '#f87171' : '#34d399'};">₹${session.total_spent}</strong><br>
                 ${showSavings ? `
                     <span style="color: #a0aec0;">Saved:</span> <strong style="color: ${sessionSavings >= 0 ? '#10b981' : '#f87171'};">₹${sessionSavings >= 0 ? sessionSavings : 0}</strong><br>
                 ` : ''}
