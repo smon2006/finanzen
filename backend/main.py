@@ -122,11 +122,13 @@ def get_dashboard(current_user: models.User = Depends(get_current_user), db: Ses
         budget = active_budget.base_budget
         period = active_budget.budget_period or "monthly"
         custom_days = active_budget.custom_days
+        has_active_budget = True 
     else:
         expenses = db.query(models.Expense).filter(models.Expense.user_id == current_user.id, models.Expense.budget_period_id == None).all()
-        budget = 0
-        period = "monthly"
+        budget = 0.0
+        period = "none"           
         custom_days = None
+        has_active_budget = False 
     
     expenses_list = [
         {
@@ -134,49 +136,47 @@ def get_dashboard(current_user: models.User = Depends(get_current_user), db: Ses
             "amount": exp.amount,
             "category": exp.category,
             "description": exp.description,
-            "date": exp.date.strftime("%Y-%m-%d") if hasattr(exp.date, 'strftime') else (str(exp.date)[:10] if exp.date else "")
+            "date": exp.date.strftime("%Y-%m-%d") if exp.date else ""
         }
         for exp in expenses
     ]
 
     total_spent = sum(exp.amount for exp in expenses)
-    
-    savings = 0
-    rollover_deficit = 0
+    savings = 0.0
+    rollover_deficit = 0.0
     rollover_message = ""
 
     if total_spent > budget:
-        savings = 0
-        rollover_deficit = total_spent - budget
-        
-        period_lower = period.lower()
-        if period_lower == "weekly":
-            next_cycle = "next week's"
-        elif period_lower == "monthly":
-            next_cycle = "next month's"
-        elif period_lower == "yearly":
-            next_cycle = "next year's"
-        elif period_lower == "custom":
-            days = custom_days or 0
-            next_cycle = f"your next {days}-day cycle"
-        else:
-            next_cycle = "your next"
-            
-        rollover_message = f"Over budget! ₹{rollover_deficit} will be auto-deducted from {next_cycle} budget."
+        if has_active_budget:  
+            rollover_deficit = total_spent - budget
+            period_lower = period.lower()
+            if period_lower == "weekly":
+                next_cycle = "next week's"
+            elif period_lower == "monthly":
+                next_cycle = "next month's"
+            elif period_lower == "yearly":
+                next_cycle = "next year's"
+            elif period_lower == "custom":
+                days = custom_days or 0
+                next_cycle = f"your next {days}-day cycle"
+            else:
+                next_cycle = "your next"
+            rollover_message = f"Over budget! ₹{rollover_deficit:.2f} will be auto-deducted from {next_cycle} budget."
     else:
         savings = budget - total_spent
 
     return {
         "name": current_user.name,
+        "hasActiveBudget": has_active_budget,
         "budget": budget,
         "budgetPeriod": period,
         "customDays": custom_days,
         "expenses": expenses_list,
         "savings": savings,
         "rolloverDeficit": rollover_deficit,
-        "rolloverMessage": rollover_message
+        "rolloverMessage": rollover_message,
+        "savingsReserve": current_user.savings_reserve
     }
-
 
 @app.post("/api/budget")
 def set_budget(budget_data: schemas.BudgetPeriodCreate, current_user: models.User = Depends(get_current_user), db: Session = Depends(get_db)):
@@ -253,39 +253,53 @@ def reset_budget(current_user: models.User = Depends(get_current_user), db: Sess
         models.BudgetPeriod.status == "ACTIVE"
     ).first()
     
-    if active_budget:
-        expenses = db.query(models.Expense).filter(models.Expense.budget_period_id == active_budget.id).all()
-        total_spent = sum(exp.amount for exp in expenses)
-        budget = active_budget.base_budget
+    if not active_budget:
+        raise HTTPException(status_code=400, detail="No active budget cycle found to reset.")
         
-        if total_spent < budget:
-            surplus = budget - total_spent
-            current_user.savings_reserve += surplus
-        
-        active_budget.status = "ARCHIVED"
-        active_budget.end_date = datetime.now(timezone.utc)
-        
+    expenses = db.query(models.Expense).filter(models.Expense.budget_period_id == active_budget.id).all()
+    total_spent = sum(exp.amount for exp in expenses)
+    budget = active_budget.base_budget
+    
+    if total_spent < budget:
+        surplus = budget - total_spent
+        current_user.savings_reserve += surplus
+    
+    active_budget.status = "ARCHIVED"
+    active_budget.end_date = datetime.now(timezone.utc)
+    
     db.commit()
-    return {"message": "Budget and expenses archived clean"}
+    return {"message": "Budget cycle successfully archived clean", "hasActiveBudget": False}
 @app.get("/api/history")
 def get_expense_history(current_user: models.User = Depends(get_current_user), db: Session = Depends(get_db)):
-    all_expenses = db.query(models.Expense).filter(
-        models.Expense.user_id == current_user.id
-    ).order_by(models.Expense.date.desc()).all()
+    archived_periods = db.query(models.BudgetPeriod).filter(
+        models.BudgetPeriod.user_id == current_user.id,
+        models.BudgetPeriod.status == "ARCHIVED"
+    ).order_by(models.BudgetPeriod.end_date.desc()).all()
     
-    history_list = [
-        {
-            "id": exp.id,
-            "amount": exp.amount,
-            "category": exp.category,
-            "description": exp.description,
-            "date": exp.date.strftime("%Y-%m-%d") if hasattr(exp.date, 'strftime') else (str(exp.date)[:10] if exp.date else "")
-        }
-        for exp in all_expenses
-    ]
-    
+    sessions_list = []
+    for period in archived_periods:
+        period_expenses = db.query(models.Expense).filter(models.Expense.budget_period_id == period.id).all()
+        total_spent = sum(exp.amount for exp in period_expenses)
+        
+        sessions_list.append({
+            "id": period.id,
+            "start_date": period.start_date.strftime("%Y-%m-%d") if period.start_date else "",
+            "end_date": period.end_date.strftime("%Y-%m-%d") if period.end_date else "Now",
+            "period_type": period.budget_period,
+            "starting_budget": period.base_budget,
+            "total_spent": total_spent,
+            "expenses": [
+                {
+                    "amount": exp.amount,
+                    "category": exp.category,
+                    "description": exp.description,
+                    "date": exp.date.strftime("%Y-%m-%d") if exp.date else ""
+                } for exp in period_expenses
+            ]
+        })
+        
     return {
         "name": current_user.name,
-        "total_historical_expenses": len(history_list),
-        "history": history_list
+        "total_archived_sessions": len(sessions_list),
+        "sessions": sessions_list
     }
