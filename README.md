@@ -9,8 +9,8 @@
 > A full-stack application built to help users set a budget, log daily expenses, and show financial statistics using live, interactive charts.
 > 
 🚀 **Live Demo:** [Click here to view FINANZEN](https://smon2006.github.io/finanzen/)
-
----
+### 🚀 Download & Install
+* **Android:** [Download the latest Android APK](https://github.com/smon2006/finanzen/releases/download/v1.0.0/finanzen.apk)
 
 ## ✨ Key Features
 
