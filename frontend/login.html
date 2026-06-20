@@ -6,6 +6,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Login - FINANZEN</title>
     <link rel="stylesheet" href="style.css">
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#1a233a">
 </head>
 
 <body class="login-page">
@@ -112,6 +114,13 @@
                 submitBtn.textContent = 'Login';
             }
         });
+        if ('serviceWorker' in navigator) {
+                window.addEventListener('load', () => {
+                    navigator.serviceWorker.register('./sw.js')
+                        .then(reg => console.log('Service Worker Registered!'))
+                        .catch(err => console.error('Service Worker Registration Failed:', err));
+                });
+            }
     </script>
 </body>
 
