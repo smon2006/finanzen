@@ -4,3 +4,10 @@ backend/finanzen.db
 venv/
 *.pyc
 .DS_Store
+android/
+ios/
+node_modules/
+*.apk
+package-lock.json
+package.json
+capacitor.config.json
