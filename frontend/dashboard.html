@@ -214,13 +214,22 @@
                             savings: serverData.savings,
                             rolloverMessage: serverData.rolloverMessage || ""
                         };
-
+                        localStorage.setItem('cached_dashboard_metrics', JSON.stringify(dashboardData));
                         syncUIState();
                     } else if (response.status === 401) {
                         logout();
                     }
                 } catch (error) {
                     console.error("Database connection fault:", error);
+                    const cachedMetricsString = localStorage.getItem('cached_dashboard_metrics');
+
+                    if (cachedMetricsString) {
+                        console.log("Device is offline. Loading cached metrics safely.");
+
+                        dashboardData = JSON.parse(cachedMetricsString);
+                    } else {
+                        dashboardData.hasActiveBudget = false;
+                    }
                     syncUIState();
                 }
             }
