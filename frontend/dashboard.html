@@ -193,11 +193,20 @@
             window.location.href = 'index.html';
         }
         document.addEventListener('DOMContentLoaded', function () {
-            window.checkBudgetExpiration();
-            document.getElementById('user-name').textContent = currentUser;
-            fetchDashboardMetrics();
-        });
-
+                if (typeof window.checkBudgetExpiration === 'function') {
+                    window.checkBudgetExpiration();
+                }
+                const userNameElement = document.getElementById('user-name');
+                if (userNameElement) {
+                    userNameElement.textContent = currentUser || "User";
+                }
+                fetchDashboardMetrics();
+                setTimeout(() => {
+                    if (typeof initAppNotifications === 'function') {
+                        initAppNotifications();
+                    }
+                }, 1000);
+            });
         expenseForm.addEventListener('submit', addExpense);
         expenseCategory.addEventListener('change', toggleOtherCategory);
         budgetPeriod.addEventListener('change', toggleCustomPeriod);
