@@ -190,27 +190,24 @@
         };
         let expenseChartInstance = null;
         if (!token || !currentUser) {
-            window.location.href = 'index.html';
-        }
-        document.addEventListener('DOMContentLoaded', function () {
+                window.location.replace('login.html');
+            }
+            document.addEventListener('DOMContentLoaded', function () {
+                const userNameEl = document.getElementById('user-name');
+                if (userNameEl) {
+                    userNameEl.textContent = currentUser;
+                }
                 if (typeof window.checkBudgetExpiration === 'function') {
                     window.checkBudgetExpiration();
                 }
-                const userNameElement = document.getElementById('user-name');
-                if (userNameElement) {
-                    userNameElement.textContent = currentUser || "User";
-                }
+                if (expenseForm) expenseForm.addEventListener('submit', addExpense);
+                if (expenseCategory) expenseCategory.addEventListener('change', toggleOtherCategory);
+                if (budgetPeriod) budgetPeriod.addEventListener('change', toggleCustomPeriod);
+
+                const setBudgetBtn = document.getElementById('set-budget');
+                if (setBudgetBtn) setBudgetBtn.addEventListener('click', setBudget);
                 fetchDashboardMetrics();
-                setTimeout(() => {
-                    if (typeof initAppNotifications === 'function') {
-                        initAppNotifications();
-                    }
-                }, 1000);
             });
-        expenseForm.addEventListener('submit', addExpense);
-        expenseCategory.addEventListener('change', toggleOtherCategory);
-        budgetPeriod.addEventListener('change', toggleCustomPeriod);
-        document.getElementById('set-budget').addEventListener('click', setBudget);
 
         async function fetchDashboardMetrics() {
                 try {
