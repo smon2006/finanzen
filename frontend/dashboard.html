@@ -160,56 +160,61 @@
     </div>
 
     <script>
-        const expenseForm = document.getElementById('expense-form');
-        const expenseCategory = document.getElementById('expense-category');
-        const otherCategoryContainer = document.getElementById('other-category-container');
-        const budgetSetter = document.getElementById('budget-setter');
-        const budgetOverview = document.getElementById('budget-overview');
-        const expenseTracker = document.getElementById('expense-tracker');
-        const expenseList = document.getElementById('expense-list');
-        const bottomWidgets = document.getElementById('bottom-widgets');
-        const budgetPeriod = document.getElementById('budget-period');
-        const customPeriodContainer = document.getElementById('custom-period-container');
+                const API_URL = 'https://finanzen-backend-5pqy.onrender.com/api';
+                const token = localStorage.getItem('finanzenToken');
+                let currentUser = localStorage.getItem('finanzenCurrentUser');
+                let selectedCategoryFilter = null;
+                let expenseChartInstance = null;
 
-        const progressFill = document.getElementById('progress-fill');
-        const progressPercentage = document.getElementById('progress-percentage');
-        const progressText = document.getElementById('progress-text');
-        const budgetPeriodInfo = document.getElementById('budget-period-info');
-
-        const API_URL = 'https://finanzen-backend-5pqy.onrender.com/api';
-        const token = localStorage.getItem('finanzenToken');
-        let currentUser = localStorage.getItem('finanzenCurrentUser');
-        let selectedCategoryFilter = null;
-        let dashboardData = {
-            name: currentUser || "User",
-            budget: 0,
-            budgetPeriod: 'monthly',
-            customDays: null,
-            expenses: [],
-            savingsVault: 0
+                let dashboardData = {
+                    name: currentUser || "User",
+                budget: 0,
+                budgetPeriod: 'monthly',
+                customDays: null,
+                expenses: [],
+                savingsVault: 0
         };
-        let expenseChartInstance = null;
-        if (!token || !currentUser) {
-                window.location.replace('login.html');
-            }
-            document.addEventListener('DOMContentLoaded', function () {
-                const userNameEl = document.getElementById('user-name');
+
+                const expenseForm = document.getElementById('expense-form');
+                const expenseCategory = document.getElementById('expense-category');
+                const otherCategoryContainer = document.getElementById('other-category-container');
+                const budgetSetter = document.getElementById('budget-setter');
+                const budgetOverview = document.getElementById('budget-overview');
+                const expenseTracker = document.getElementById('expense-tracker');
+                const expenseList = document.getElementById('expense-list');
+                const bottomWidgets = document.getElementById('bottom-widgets');
+                const budgetPeriod = document.getElementById('budget-period');
+                const customPeriodContainer = document.getElementById('custom-period-container');
+
+                const progressFill = document.getElementById('progress-fill');
+                const progressPercentage = document.getElementById('progress-percentage');
+                const progressText = document.getElementById('progress-text');
+                const budgetPeriodInfo = document.getElementById('budget-period-info');
+
+                if (!token || !currentUser) {
+                    window.location.replace('login.html');
+        }
+
+                document.addEventListener('DOMContentLoaded', function () {
+            const userNameEl = document.getElementById('user-name');
                 if (userNameEl) {
-                    userNameEl.textContent = currentUser;
-                }
+                    userNameEl.textContent = currentUser || "User";
+            }
+
                 if (typeof window.checkBudgetExpiration === 'function') {
                     window.checkBudgetExpiration();
-                }
+            }
+
                 if (expenseForm) expenseForm.addEventListener('submit', addExpense);
                 if (expenseCategory) expenseCategory.addEventListener('change', toggleOtherCategory);
                 if (budgetPeriod) budgetPeriod.addEventListener('change', toggleCustomPeriod);
 
                 const setBudgetBtn = document.getElementById('set-budget');
                 if (setBudgetBtn) setBudgetBtn.addEventListener('click', setBudget);
-                fetchDashboardMetrics();
-            });
 
-        async function fetchDashboardMetrics() {
+                fetchDashboardMetrics();
+        });
+                async function fetchDashboardMetrics() {
                 try {
                     const response = await fetch(`${API_URL}/dashboard`, {
                         method: 'GET',
