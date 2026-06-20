@@ -202,12 +202,14 @@
                     if (response.ok) {
                         const serverData = await response.json();
 
+                        let safePeriod = serverData.budget_period || serverData.period_type || serverData.period || dashboardData.budgetPeriod || 'monthly';
+
                         dashboardData = {
                             name: serverData.name || currentUser,
                             hasActiveBudget: serverData.hasActiveBudget !== undefined ? serverData.hasActiveBudget : true,
                             budget: serverData.base_budget !== undefined ? serverData.base_budget : (serverData.budget || 0),
-                            budgetPeriod: serverData.budget_period || serverData.period || 'monthly',
-                            customDays: serverData.custom_days || serverData.customDays || null,
+                            budgetPeriod: safePeriod.toLowerCase(),
+                            customDays: serverData.custom_days || serverData.customDays || dashboardData.customDays || null,
                             expenses: serverData.expenses || [],
                             savings: serverData.savings,
                             rolloverMessage: serverData.rolloverMessage || ""
