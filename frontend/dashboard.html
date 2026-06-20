@@ -12,8 +12,19 @@
 
 <body class="dashboard">
     <div class="container">
-        <button id="logout-btn" class="logout-btn" onclick="logout()">Logout</button>
-
+    
+        <div
+            style="display: flex; justify-content: flex-end; align-items: center; gap: 10px; margin-bottom: 15px; width: 100%; flex-wrap: wrap;">
+            <button class="submit-btn" onclick="openNotificationSettings()"
+                style="margin: 0; padding: 8px 12px; font-size: 15px; display: flex; align-items: center; gap: 5px; height: 38px; min-height: unset; width: auto !important;">
+                ⚙️ Notifications
+            </button>
+            <button id="logout-btn" class="logout-btn" onclick="logout()"
+                style="margin: 0; padding: 0 16px; height: 38px; font-size: 15px; width: auto !important;">
+                Logout
+            </button>
+        </div>
+    
         <div class="header-section">
             <h1>FINANZEN</h1>
             <h2>Your Budget Dashboard</h2>
@@ -305,8 +316,20 @@
                     dashboardData.budget = budget;
                     dashboardData.budgetPeriod = period;
                     dashboardData.customDays = customDays;
+                    Swal.fire({ icon: 'success', title: 'Success!', text: 'Budget set successfully!', confirmButtonColor: '#2563eb' }).then(() => {
 
-                    Swal.fire({ icon: 'success', title: 'Success!', text: 'Budget set successfully!', confirmButtonColor: '#2563eb' });
+                        setTimeout(() => {
+                            if (localStorage.getItem('isManualReset') === 'true') {
+                                localStorage.removeItem('isManualReset');
+                            } else {
+                                if (!localStorage.getItem('finanzenNotificationsAsked')) {
+                                    openNotificationSettings();
+                                } else if (localStorage.getItem('finanzenNotificationsEnabled') === 'true') {
+                                    openNotificationSettings();
+                                }
+                            }
+                        }, 150);
+                    });
                     fetchDashboardMetrics();
                 } else {
                     Swal.fire({ icon: 'error', title: 'Failed', text: 'Failed to update your budget parameters on the engine.' });
@@ -529,9 +552,18 @@
         }
 
         function logout() {
-            localStorage.clear();
-            window.location.href = 'index.html';
-        }
+                const notifAsked = localStorage.getItem('finanzenNotificationsAsked');
+                const notifEnabled = localStorage.getItem('finanzenNotificationsEnabled');
+                const notifTime = localStorage.getItem('finanzenReminderTime');
+
+                localStorage.clear();
+
+                if (notifAsked) localStorage.setItem('finanzenNotificationsAsked', notifAsked);
+                if (notifEnabled) localStorage.setItem('finanzenNotificationsEnabled', notifEnabled);
+                if (notifTime) localStorage.setItem('finanzenReminderTime', notifTime);
+
+                window.location.href = 'index.html';
+            }
 
         async function resetBudget() {
                 Swal.fire({
@@ -543,7 +575,6 @@
                     cancelButtonColor: '#6c757d',
                     confirmButtonText: 'Yes, reset it!',
                     cancelButtonText: 'Cancel',
-                    // Add these to match your background theme
                     background: '#1a233a',
                     color: '#ffffff'
                 }).then(async (result) => {
@@ -559,7 +590,7 @@
                                 document.getElementById('budget-period').value = 'monthly';
                                 document.getElementById('custom-period').value = '';
                                 customPeriodContainer.classList.add('hidden');
-
+                                localStorage.setItem('isManualReset', 'true');
                                 Swal.fire({
                                     icon: 'success',
                                     title: 'Reset Complete',
@@ -1073,7 +1104,7 @@
                                     confirmButtonColor: '#2563eb',
                                     confirmButtonText: 'Set New Budget',
                                     allowOutsideClick: false
-                                }).then(async (result) => { // <-- Note the 'async' here!
+                                }).then(async (result) => { 
                                     if (result.isConfirmed) {
                                         try {
                                             await fetch(`${API_URL}/budget/reset`, {
@@ -1088,6 +1119,146 @@
                                     }
                                 });
                             };
+                            const LocalNotifications = window.Capacitor ? window.Capacitor.Plugins.LocalNotifications : null;
+                                async function updateNotificationSchedule() {
+                                        const enabled = localStorage.getItem('finanzenNotificationsEnabled') === 'true';
+                                        const timeStr = localStorage.getItem('finanzenReminderTime');
+
+                                        if (!enabled || !timeStr) {
+                                            console.log("Notifications disabled or time not set.");
+                                            return;
+                                        }
+                                        console.log(`User wants to be reminded at: ${timeStr}`);
+                                    }
+
+                                async function checkFirstTimeUser() {
+                                        const hasAsked = localStorage.getItem('finanzenNotificationsAsked');
+                                        if (!hasAsked) {
+                                            const result = await Swal.fire({
+                                                title: 'Enable Reminders?',
+                                                html: '<p style="font-size: 15px; color: #cbd5e1; margin: 0; line-height: 1.5;">Would you like to receive daily notifications to remind you to log your expenses?</p>',
+                                                icon: 'question',
+                                                background: '#1a233a', color: '#ffffff',
+                                                showCancelButton: true,
+                                                confirmButtonText: 'Yes, Enable',
+                                                cancelButtonText: 'Remind Me Later',
+                                                confirmButtonColor: '#2563eb', cancelButtonColor: '#64748b'
+                                            });
+
+                                            if (result.isConfirmed) {
+                                                localStorage.setItem('finanzenNotificationsAsked', 'true');
+                                                localStorage.setItem('finanzenNotificationsEnabled', 'true');
+                                                 openNotificationSettings();
+
+                                            } else if (result.dismiss === Swal.DismissReason.cancel) {
+                                                // User clicked "Remind me later"
+                                                localStorage.setItem('finanzenNotificationsAsked', 'true');
+                                                localStorage.setItem('finanzenNotificationsEnabled', 'false');
+                                                Swal.fire({
+                                                    title: 'Postponed',
+                                                    text: 'No problem! We will remind you to set this up later.',
+                                                    icon: 'info',
+                                                    background: '#1a233a', color: '#ffffff',
+                                                    timer: 2000, showConfirmButton: false
+                                                });
+                                            }
+                                        }
+                                    }
+                                async function promptReminderSetting(isFirstTime = false) {
+                                    const savedTime = localStorage.getItem('finanzenReminderTime') || '12:00';
+                                    const titleText = isFirstTime ? 'Set Reminder Time' : 'Budget Set! Set a Reminder?';
+
+                                    const { value: timeInput } = await Swal.fire({
+                                        title: titleText,
+                                        html: `
+            <p style="font-size: 15px; color: #cbd5e1; margin-bottom: 15px;">When should we remind you to log your expenses?</p>
+            <input type="time" id="swal-reminder-time" class="form-control" value="${savedTime}" style="width: 140px; margin: 0 auto; display: block; font-size: 16px;">
+        `,
+                                        background: '#1a233a', color: '#ffffff',
+                                        showCancelButton: !isFirstTime,
+                                        confirmButtonColor: '#2563eb', cancelButtonColor: '#64748b',
+                                        confirmButtonText: 'Save Time', cancelButtonText: 'Skip',
+                                        preConfirm: () => document.getElementById('swal-reminder-time').value
+                                    });
+
+                                    if (timeInput) {
+                                        localStorage.setItem('finanzenReminderTime', timeInput);
+                                        localStorage.setItem('finanzenNotificationsEnabled', 'true');
+                                        await updateNotificationSchedule();
+                                        Swal.fire({ title: 'Saved!', text: `Reminder set for ${timeInput}.`, icon: 'success', background: '#1a233a', color: '#ffffff', timer: 1500, showConfirmButton: false });
+                                    }
+                                }
+
+                                async function openNotificationSettings() {
+                                        const savedTime = localStorage.getItem('finanzenReminderTime') || '12:00';
+                                        const isEnabled = localStorage.getItem('finanzenNotificationsEnabled') === 'true';
+
+                                        const result = await Swal.fire({
+                                            title: 'Notification Settings',
+                                            html: `
+            <div style="display: flex; flex-direction: column; gap: 15px; align-items: center; margin-top: 10px;">
+                <label style="display: flex; align-items: center; gap: 10px; cursor: pointer; font-size: 15px; color: #cbd5e1;">
+                    <input type="checkbox" id="swal-notif-enable" style="width: 18px; height: 18px;" ${isEnabled ? 'checked' : ''}>
+                    Enable Daily Reminders
+                </label>
+                <div id="time-picker-container" style="display: ${isEnabled ? 'block' : 'none'}; width: 100%;">
+                    <p style="color: #cbd5e1; margin-bottom: 8px; font-size: 14px;">Reminder Time:</p>
+                    <input type="time" id="swal-notif-time" class="form-control" value="${savedTime}" style="width: 140px; margin: 0 auto; display: block; font-size: 16px;">
+                </div>
+            </div>
+        `,
+                                            background: '#1a233a', color: '#ffffff',
+                                            showCancelButton: true, confirmButtonColor: '#2563eb', cancelButtonColor: '#ef4444',
+                                            confirmButtonText: 'Save Settings',
+                                            didOpen: () => {
+                                                const checkbox = document.getElementById('swal-notif-enable');
+                                                const timeContainer = document.getElementById('time-picker-container');
+                                                checkbox.addEventListener('change', (e) => {
+                                                    timeContainer.style.display = e.target.checked ? 'block' : 'none';
+                                                });
+                                            },
+                                            preConfirm: () => {
+                                                return {
+                                                    enabled: document.getElementById('swal-notif-enable').checked,
+                                                    time: document.getElementById('swal-notif-time').value
+                                                }
+                                            }
+                                        });
+
+                                        if (result.isConfirmed) {
+                                            localStorage.setItem('finanzenNotificationsAsked', 'true');
+                                            localStorage.setItem('finanzenNotificationsEnabled', result.value.enabled);
+                                            localStorage.setItem('finanzenReminderTime', result.value.time);
+                                            await updateNotificationSchedule();
+                                            Swal.fire({ title: 'Saved!', text: 'Notification settings updated.', icon: 'success', background: '#1a233a', color: '#ffffff', timer: 1500, showConfirmButton: false });
+                                        } else if (result.isDismissed) {
+                                            localStorage.setItem('finanzenNotificationsAsked', 'true');
+                                        }
+                                    }
+                                async function triggerBudgetBreachNotification(spent, totalBudget) {
+                                    if (!LocalNotifications) return;
+                                    try {
+                                        await LocalNotifications.schedule({
+                                            notifications: [{
+                                                id: 2000,
+                                                title: "🚨 Budget Limit Breached!",
+                                                body: `Warning: You have spent ₹${spent} out of your ₹${totalBudget} budget allowance.`,
+                                                schedule: { at: new Date(Date.now() + 500) }
+                                            }]
+                                        });
+                                    } catch (error) { console.error("Error launching instant push alert:", error); }
+                                }
+
+                                async function initAppNotifications() {
+                                        try {
+                                            if (localStorage.getItem('finanzenNotificationsEnabled') === 'true') {
+                                                await updateNotificationSchedule();
+                                            }
+                                        } catch (error) {
+                                            console.error("Initialization error: ", error);
+                                        }
+                                    }
+                                setTimeout(initAppNotifications, 1000);
     </script>
 </body>
 
