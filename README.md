@@ -39,6 +39,7 @@ FINANZEN is built using a modern, decoupled architecture, separating the client 
 ### Frontend (The Client)
 * **Core:** HTML5, CSS3, Vanilla JavaScript (ES6+)
 * **Data Visualization:** Chart.js
+* **Mobile Runtime Wrapper:** Capacitor JS
 * **Alerts:** SweetAlert2
 * **Hosting:** GitHub Pages
 
@@ -92,3 +93,16 @@ The API will be available at http://localhost:8000 and the interactive Swagger D
 
 ### 5. Launch the Frontend
 Simply open index.html in your preferred web browser, or serve it using a local live server extension.
+
+### 6. Build the Android App (Capacitor Setup)
+If you want to compile the project into an Android APK yourself using the embedded Capacitor engine, run these terminal actions:
+
+```bash
+# Add the native Android platform project directories
+npx cap add android
+
+# Copy the modern web asset layout directly into the Android source package
+npx cap copy android
+
+# Open the project directory natively inside Android Studio to compile your production APK
+npx cap open android
