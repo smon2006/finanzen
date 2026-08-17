@@ -45,6 +45,14 @@ def create_access_token(data: dict) -> str:
     to_encode.update({"exp": expire})
     return jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
 
+RESET_TOKEN_EXPIRE_MINUTES = 15
+
+def create_reset_token(data: dict) -> str:
+    to_encode = data.copy()
+    expire = datetime.now(timezone.utc) + timedelta(minutes=RESET_TOKEN_EXPIRE_MINUTES)
+    to_encode.update({"exp": expire, "purpose": "password_reset"})
+    return jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
+
 def calculate_horizon_end_date(start_date: datetime, period: str, custom_days: Optional[int] = None) -> datetime:
     period_lower = period.lower()
     if period_lower == "weekly":
@@ -112,6 +120,42 @@ def login(credentials: schemas.UserLogin, db: Session = Depends(get_db)):
     
     token = create_access_token(data={"sub": user.username})
     return {"access_token": token, "token_type": "bearer", "name": user.name}
+
+
+@app.post("/api/forgot-password/verify")
+def verify_identity_for_reset(data: schemas.ForgotPasswordVerify, db: Session = Depends(get_db)):
+    user = db.query(models.User).filter(
+        models.User.username == data.username
+    ).first()
+
+    if not user:
+        raise HTTPException(status_code=400, detail="No account found with that username.")
+
+    reset_token = create_reset_token(data={"sub": user.username})
+    return {"reset_token": reset_token}
+
+
+@app.post("/api/forgot-password/reset")
+def reset_password(data: schemas.ResetPasswordConfirm, db: Session = Depends(get_db)):
+    try:
+        payload = jwt.decode(data.reset_token, SECRET_KEY, algorithms=[ALGORITHM])
+        if payload.get("purpose") != "password_reset":
+            raise HTTPException(status_code=400, detail="Invalid reset request. Please start over.")
+        username = payload.get("sub")
+    except HTTPException:
+        raise
+    except Exception:
+        raise HTTPException(status_code=400, detail="Your reset session has expired. Please start over.")
+
+    user = db.query(models.User).filter(models.User.username == username).first()
+    if not user:
+        raise HTTPException(status_code=400, detail="User not found.")
+
+    user.password_hash = get_password_hash(data.new_password)
+    db.commit()
+
+    return {"message": "Password has been reset successfully. You can now log in."}
+
 
 @app.get("/api/dashboard")
 def get_dashboard(current_user: models.User = Depends(get_current_user), db: Session = Depends(get_db)):
