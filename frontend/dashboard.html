@@ -35,7 +35,7 @@
         </div>
 
         <div class="budget-section">
-            <div id="budget-setter" class="budget-card">
+            <div id="budget-setter" class="budget-card hidden">
                 <h3>Set Your Budget</h3>
                 <div class="budget-controls">
                     <div class="form-group">
@@ -276,7 +276,8 @@
                     updateBudgetSummary();
                     renderExpenseChart();
                 } else {
-                    budgetSetter.style.display = 'block';
+                    budgetSetter.classList.remove('hidden');
+budgetSetter.style.display = 'block';
                     budgetOverview.classList.add('hidden');
                     expenseTracker.classList.add('hidden');
                     bottomWidgets.classList.add('hidden');
