@@ -89,4 +89,11 @@ class UserLogin(BaseModel):
     username: str
     password: str
 
-class
+class UserOut(BaseModel):
+    id: int
+    username: str
+    name: str
+    savings_reserve: float 
+
+    class Config:
+        from_attributes = True
