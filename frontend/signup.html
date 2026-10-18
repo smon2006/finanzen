@@ -66,6 +66,7 @@
     </div>
 
     <script>
+        fetch('https://finanzen-backend-5pqy.onrender.com/health').catch(() => {});
         document.addEventListener('DOMContentLoaded', function () {
                 if (localStorage.getItem('finanzenToken') && localStorage.getItem('finanzenCurrentUser')) {
                     window.location.href = 'dashboard.html';
