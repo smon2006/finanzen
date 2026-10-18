@@ -41,6 +41,7 @@
     </div>
 
     <script>
+        fetch('https://finanzen-backend-5pqy.onrender.com/health').catch(() => {});
         document.addEventListener('DOMContentLoaded', function () {
                 const token = localStorage.getItem('finanzenToken');
                 const currentUser = localStorage.getItem('finanzenCurrentUser');
